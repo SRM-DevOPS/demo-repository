@@ -1,0 +1,75 @@
+name: Backend Pytest
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-pytest.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-pytest.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      db:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: app
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_SERVER: localhost
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: app
+      POSTGRES_PORT: 5432
+      SECRET_KEY: "test-secret-key-at-least-32-chars-long"
+      PROJECT_NAME: "FastAPI Project"
+      FIRST_SUPERUSER: "admin@example.com"
+      FIRST_SUPERUSER_PASSWORD: "changethis"
+      ENVIRONMENT: "local"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.9.26"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "backend/pyproject.toml"
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          uv sync --frozen --dev
+
+      - name: Run linting (Optional but recommended)
+        run: |
+          cd backend
+          uv run mypy app
+          uv run ruff check app
+          uv run ruff format app --check
+
+      - name: Run tests
+        run: |
+          cd backend
+          # We use uv run to execute pytest within the sync'ed environment
+          uv run pytest tests/
