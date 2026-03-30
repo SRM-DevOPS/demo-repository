@@ -1,0 +1,218 @@
+name: Mi-Frontend App Build & Push to ECR and Update GitOps
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/mi-frontend-ecr.yml'
+
+env:
+  AWS_REGION: ap-south-1
+  AWS_ACCOUNT_ID: "891377374196"
+
+  # ECR Repositories
+  ECR_PRIMARY_REPO: demo_repository
+
+  # GitOps repositories
+  GITOPS_REPO: Sympera/sympera-gitops
+
+  # Integration values
+  VALUES_FILE_UI_INT: envs/integration/mi/default/frontend/values.yaml
+
+  # UAT values
+  VALUES_FILE_UI_UAT: envs/uat/mi/default/frontend/values.yaml
+
+  # Production values
+  VALUES_FILE_UI_PROD: envs/production/mi/default/frontend/values.yaml
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-22.04
+    outputs:
+      version: ${{ steps.tag.outputs.VERSION }}
+      committer_name: ${{ steps.gitmeta.outputs.committer_name }}
+      committer_email: ${{ steps.gitmeta.outputs.committer_email }}
+      commit_msg: ${{ steps.gitmeta.outputs.commit_msg }}
+
+    steps:
+      - name: Checkout GitOps repo (Integration) to read version
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GH_PAT }}
+          path: gitops-int
+          fetch-depth: 0
+
+      - name: Derive next Docker version tag
+        id: tag
+        run: |
+          FILE="gitops-int/${{ env.VALUES_FILE_UI_INT }}"
+          if [ -f "$FILE" ]; then
+            CURRENT=$(yq e '.image.tag' "$FILE" | sed 's/[^0-9]//g')
+          else
+            CURRENT=0
+          fi
+          
+          if [[ "$CURRENT" =~ ^[0-9]+$ ]]; then
+            NEXT=$((CURRENT + 1))
+          else
+            NEXT=1
+          fi
+          echo "VERSION=$NEXT" >> "$GITHUB_ENV"
+          echo "VERSION=$NEXT" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Next Version::V$NEXT"
+
+      - name: Checkout application repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Extract committer and commit message
+        id: gitmeta
+        run: |
+          COMMITTER_NAME=$(git log -1 --pretty=format:'%an')
+          COMMITTER_EMAIL=$(git log -1 --pretty=format:'%ae')
+          COMMIT_MSG=$(git log -1 --pretty=format:'%s')
+
+          echo "committer_name=$COMMITTER_NAME" >> $GITHUB_OUTPUT
+          echo "committer_email=$COMMITTER_EMAIL" >> $GITHUB_OUTPUT
+          echo "commit_msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region $AWS_REGION | \
+          docker login --username AWS \
+            --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+
+      - name: Build and push images
+        run: |
+          VERSION="${{ steps.tag.outputs.VERSION }}"
+          IMAGE_BASE="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          REPO="${ECR_PRIMARY_REPO}"
+          IMAGE_TAG="${IMAGE_BASE}/${REPO}:frontend-v${VERSION}"
+
+          echo "Building frontend image: $IMAGE_TAG"
+          # Building from root to allow frontend/Dockerfile to access files correctly
+          docker build -f frontend/Dockerfile -t "$IMAGE_TAG" .
+          echo "Pushing frontend image: $IMAGE_TAG"
+          docker push "$IMAGE_TAG"
+
+  update-gitops-integration:
+    needs: build-and-push
+    runs-on: ubuntu-22.04
+    environment: integration
+    steps:
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GH_PAT }}
+          path: gitops
+          fetch-depth: 0
+
+      - name: Update image tags in Integration values.yaml
+        run: |
+          cd gitops
+          VERSION="${{ needs.build-and-push.outputs.version }}"
+          yq e -i ".image.tag = \"frontend-v${VERSION}\"" "${{ env.VALUES_FILE_UI_INT }}"
+
+      - name: Commit & push changes to GitOps repo
+        run: |
+          cd gitops
+          VERSION="${{ needs.build-and-push.outputs.version }}"
+          git config user.name  "${{ needs.build-and-push.outputs.committer_name }}"
+          git config user.email "${{ needs.build-and-push.outputs.committer_email }}"
+
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git add "${{ env.VALUES_FILE_UI_INT }}"
+          git commit -m "${{ needs.build-and-push.outputs.commit_msg }} [ci: build version frontend-v${VERSION}]"
+
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+  update-gitops-uat:
+    needs: [build-and-push, update-gitops-integration]
+    runs-on: ubuntu-22.04
+    environment: uat
+    steps:
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GH_PAT }}
+          path: gitops
+          fetch-depth: 0
+
+      - name: Update image tags in UAT values.yaml
+        run: |
+          cd gitops
+          VERSION="${{ needs.build-and-push.outputs.version }}"
+          yq e -i ".image.tag = \"frontend-v${VERSION}\"" "${{ env.VALUES_FILE_UI_UAT }}"
+
+      - name: Commit & push changes to GitOps repo
+        run: |
+          cd gitops
+          VERSION="${{ needs.build-and-push.outputs.version }}"
+          git config user.name  "${{ needs.build-and-push.outputs.committer_name }}"
+          git config user.email "${{ needs.build-and-push.outputs.committer_email }}"
+
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git add "${{ env.VALUES_FILE_UI_UAT }}"
+          git commit -m "${{ needs.build-and-push.outputs.commit_msg }} [ci: build version frontend-v${VERSION}]"
+
+          git pull --rebase origin main
+          git push origin HEAD:main
+
+  update-gitops-production:
+    needs: [build-and-push, update-gitops-uat]
+    runs-on: ubuntu-22.04
+    environment: production
+    steps:
+      - name: Checkout GitOps repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.GITOPS_REPO }}
+          token: ${{ secrets.GH_PAT }}
+          path: gitops
+          fetch-depth: 0
+
+      - name: Update image tags in Production values.yaml
+        run: |
+          cd gitops
+          VERSION="${{ needs.build-and-push.outputs.version }}"
+          yq e -i ".image.tag = \"frontend-v${VERSION}\"" "${{ env.VALUES_FILE_UI_PROD }}"
+
+      - name: Commit & push changes to GitOps repo
+        run: |
+          cd gitops
+          VERSION="${{ needs.build-and-push.outputs.version }}"
+          git config user.name  "${{ needs.build-and-push.outputs.committer_name }}"
+          git config user.email "${{ needs.build-and-push.outputs.committer_email }}"
+
+          if git diff --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git add "${{ env.VALUES_FILE_UI_PROD }}"
+          git commit -m "${{ needs.build-and-push.outputs.commit_msg }} [ci: build version frontend-v${VERSION}]"
+
+          git pull --rebase origin main
+          git push origin HEAD:main

@@ -1,0 +1,64 @@
+name: Jira Ticket Validation Check
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+    branches:
+      - main  # PRs target 'main'
+
+jobs:
+  check-jira-ticket:
+    name: Jira Ticket Status
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Extract Jira Ticket from branch name or PR title
+        id: extract
+        run: |
+          set -euo pipefail
+          
+          TITLE="${{ github.event.pull_request.title }}"
+          BRANCH="${{ github.head_ref }}"
+
+          echo "🔍 Checking Branch Name: $BRANCH"
+          echo "🔍 Checking PR Title: $TITLE"
+
+          # Extract Jira ticket from branch name first
+          TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+')
+
+          # If not found in branch, try PR title
+          if [ -z "$TICKET" ]; then
+            TICKET=$(echo "$TITLE" | grep -oE '[A-Z]+-[0-9]+')
+          fi
+
+          if [ -z "$TICKET" ]; then
+            echo "❌ No Jira ticket key found in branch name or PR title."
+            exit 1
+          fi
+
+          echo "✅ Jira Ticket Detected: $TICKET"
+          echo "ticket=$TICKET" >> $GITHUB_OUTPUT
+
+      - name: Validate Jira Ticket Status
+        run: |
+          echo "🔍 Validating Jira ticket status for: ${{ steps.extract.outputs.ticket }}"
+
+          RESPONSE=$(curl -s -u "${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
+            -H "Accept: application/json" \
+            "${{ secrets.JIRA_BASE_URL }}/rest/api/3/issue/${{ steps.extract.outputs.ticket }}")
+
+          STATUS=$(echo "$RESPONSE" | jq -r '.fields.status.name')
+          
+          #echo "🔎 Raw Jira API Response: $RESPONSE"
+
+          echo "📌 Jira ticket status: $STATUS"
+
+          if [[ "$STATUS" != "In Progress" && "$STATUS" != "In Review" ]]; then
+            echo "❌ Ticket must be in 'In Progress' or 'In Review' to allow merging."
+            exit 1
+          fi
+
+          echo "✅ Ticket is in a valid status: $STATUS"
