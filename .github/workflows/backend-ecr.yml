@@ -1,4 +1,4 @@
-name: Mi-Backend App Build & Push to ECR and Update GitOps
+name: Backend App Build & Push to ECR and Update GitOps
 
 on:
   push:
@@ -6,32 +6,26 @@ on:
       - main
     paths:
       - 'backend/**'
-      - '.github/workflows/mi-backend-ecr.yml'
+      - '.github/workflows/backend-ecr.yml'
 
 env:
-  AWS_REGION: ap-south-1
-  AWS_ACCOUNT_ID: "891377374196"
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
 
   # ECR Repositories
-  ECR_PRIMARY_REPO: demo_repository
+  ECR_PRIMARY_REPO: ${{ secrets.ECR_PRIMARY_REPO }}
 
   # GitOps repositories
-  GITOPS_REPO: Sympera/sympera-gitops
+  GITOPS_REPO: ${{ secrets.GITOPS_REPO }}
 
   # Integration values
-  VALUES_FILE_APP_INT: envs/integration/mi/default/app/values.yaml
-  VALUES_FILE_CELERY_INT: envs/integration/mi/default/celery/values.yaml
-  VALUES_FILE_CELERY_BEAT_INT: envs/integration/mi/default/celery-beat/values.yaml
+  VALUES_FILE_APP_INT: envs/integration/backend/default/app/values.yaml
 
-  # UAT values
-  VALUES_FILE_APP_UAT: envs/uat/mi/default/app/values.yaml
-  VALUES_FILE_CELERY_UAT: envs/uat/mi/default/celery/values.yaml
-  VALUES_FILE_CELERY_BEAT_UAT: envs/uat/mi/default/celery-beat/values.yaml
+  # Demo values
+  VALUES_FILE_APP_DEMO: envs/demo/backend/default/app/values.yaml
 
   # Production values
-  VALUES_FILE_APP_PROD: envs/production/mi/default/app/values.yaml
-  VALUES_FILE_CELERY_PROD: envs/production/mi/default/celery/values.yaml
-  VALUES_FILE_CELERY_BEAT_PROD: envs/production/mi/default/celery-beat/values.yaml
+  VALUES_FILE_APP_PROD: envs/production/backend/default/app/values.yaml
 
 jobs:
   build-and-push:
@@ -87,6 +81,17 @@ jobs:
           echo "committer_email=$COMMITTER_EMAIL" >> $GITHUB_OUTPUT
           echo "commit_msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
 
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -100,7 +105,7 @@ jobs:
           docker login --username AWS \
             --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
-      - name: Build and push images
+      - name: Build and push image
         env:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
@@ -108,16 +113,11 @@ jobs:
           IMAGE_BASE="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
           REPO="${ECR_PRIMARY_REPO}"
           
-          # We build the backend image.
-          TAGS=("app" "celery" "celery-beat")
-
-          for tag in "${TAGS[@]}"; do
-            IMAGE_TAG="${IMAGE_BASE}/${REPO}:backend-${tag}-v${VERSION}"
-            echo "Building image: $IMAGE_TAG"
-            docker build -f backend/Dockerfile -t "$IMAGE_TAG" .
-            echo "Pushing image: $IMAGE_TAG"
-            docker push "$IMAGE_TAG"
-          done
+          IMAGE_TAG="${IMAGE_BASE}/${REPO}:backend-v${VERSION}"
+          echo "Building image: $IMAGE_TAG"
+          docker build -f backend/Dockerfile -t "$IMAGE_TAG" .
+          echo "Pushing image: $IMAGE_TAG"
+          docker push "$IMAGE_TAG"
 
   update-gitops-integration:
     needs: build-and-push
@@ -132,13 +132,11 @@ jobs:
           path: gitops
           fetch-depth: 0
 
-      - name: Update image tags in Integration values.yaml files
+      - name: Update image tag in Integration values.yaml
         run: |
           cd gitops
           VERSION="${{ needs.build-and-push.outputs.version }}"
-          yq e -i ".image.tag = \"backend-app-v${VERSION}\"" "${{ env.VALUES_FILE_APP_INT }}"
-          yq e -i ".image.tag = \"backend-celery-v${VERSION}\"" "${{ env.VALUES_FILE_CELERY_INT }}"
-          yq e -i ".image.tag = \"backend-celery-beat-v${VERSION}\"" "${{ env.VALUES_FILE_CELERY_BEAT_INT }}"
+          yq e -i ".image.tag = \"backend-v${VERSION}\"" "${{ env.VALUES_FILE_APP_INT }}"
 
       - name: Commit & push changes to GitOps repo
         run: |
@@ -152,16 +150,32 @@ jobs:
             exit 0
           fi
 
-          git add "${{ env.VALUES_FILE_APP_INT }}" "${{ env.VALUES_FILE_CELERY_INT }}" "${{ env.VALUES_FILE_CELERY_BEAT_INT }}"
+          git add "${{ env.VALUES_FILE_APP_INT }}"
           git commit -m "${{ needs.build-and-push.outputs.commit_msg }} [ci: build version backend-v${VERSION}]"
 
           git pull --rebase origin main
           git push origin HEAD:main
 
-  update-gitops-uat:
+  tag-release:
+    needs: [build-and-push, update-gitops-production]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout application repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create and push Git tag
+        run: |
+          VERSION="${{ needs.build-and-push.outputs.version }}"
+          TAG="backend-v${VERSION}"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+  update-gitops-demo:
     needs: [build-and-push, update-gitops-integration]
     runs-on: ubuntu-22.04
-    environment: uat
+    environment: demo
     steps:
       - name: Checkout GitOps repo
         uses: actions/checkout@v4
@@ -171,13 +185,11 @@ jobs:
           path: gitops
           fetch-depth: 0
 
-      - name: Update image tags in UAT values.yaml files
+      - name: Update image tag in Demo values.yaml
         run: |
           cd gitops
           VERSION="${{ needs.build-and-push.outputs.version }}"
-          yq e -i ".image.tag = \"backend-app-v${VERSION}\"" "${{ env.VALUES_FILE_APP_UAT }}"
-          yq e -i ".image.tag = \"backend-celery-v${VERSION}\"" "${{ env.VALUES_FILE_CELERY_UAT }}"
-          yq e -i ".image.tag = \"backend-celery-beat-v${VERSION}\"" "${{ env.VALUES_FILE_CELERY_BEAT_UAT }}"
+          yq e -i ".image.tag = \"backend-v${VERSION}\"" "${{ env.VALUES_FILE_APP_DEMO }}"
 
       - name: Commit & push changes to GitOps repo
         run: |
@@ -191,14 +203,14 @@ jobs:
             exit 0
           fi
 
-          git add "${{ env.VALUES_FILE_APP_UAT }}" "${{ env.VALUES_FILE_CELERY_UAT }}" "${{ env.VALUES_FILE_CELERY_BEAT_UAT }}"
+          git add "${{ env.VALUES_FILE_APP_DEMO }}"
           git commit -m "${{ needs.build-and-push.outputs.commit_msg }} [ci: build version backend-v${VERSION}]"
 
           git pull --rebase origin main
           git push origin HEAD:main
 
   update-gitops-production:
-    needs: [build-and-push, update-gitops-uat]
+    needs: [build-and-push, update-gitops-demo]
     runs-on: ubuntu-22.04
     environment: production
     steps:
@@ -210,13 +222,11 @@ jobs:
           path: gitops
           fetch-depth: 0
 
-      - name: Update image tags in Production values.yaml files
+      - name: Update image tag in Production values.yaml
         run: |
           cd gitops
           VERSION="${{ needs.build-and-push.outputs.version }}"
-          yq e -i ".image.tag = \"backend-app-v${VERSION}\"" "${{ env.VALUES_FILE_APP_PROD }}"
-          yq e -i ".image.tag = \"backend-celery-v${VERSION}\"" "${{ env.VALUES_FILE_CELERY_PROD }}"
-          yq e -i ".image.tag = \"backend-celery-beat-v${VERSION}\"" "${{ env.VALUES_FILE_CELERY_BEAT_PROD }}"
+          yq e -i ".image.tag = \"backend-v${VERSION}\"" "${{ env.VALUES_FILE_APP_PROD }}"
 
       - name: Commit & push changes to GitOps repo
         run: |
@@ -230,7 +240,7 @@ jobs:
             exit 0
           fi
 
-          git add "${{ env.VALUES_FILE_APP_PROD }}" "${{ env.VALUES_FILE_CELERY_PROD }}" "${{ env.VALUES_FILE_CELERY_BEAT_PROD }}"
+          git add "${{ env.VALUES_FILE_APP_PROD }}"
           git commit -m "${{ needs.build-and-push.outputs.commit_msg }} [ci: build version backend-v${VERSION}]"
 
           git pull --rebase origin main

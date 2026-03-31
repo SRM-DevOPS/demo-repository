@@ -2,10 +2,10 @@ from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlmodel import Session, SQLModel, delete
+from sqlmodel import Session, SQLModel
 
 from app.core.config import settings
-from app.core.db import engine
+from app.core.db import engine, init_db
 from app.main import app
 from app.models import Item, User
 from tests.utils.user import authentication_token_from_email
@@ -16,6 +16,7 @@ from tests.utils.utils import get_superuser_token_headers
 def db() -> Generator[Session, None, None]:
     with Session(engine) as session:
         SQLModel.metadata.create_all(engine)
+        init_db(session)
         yield session
         SQLModel.metadata.drop_all(engine)
 
