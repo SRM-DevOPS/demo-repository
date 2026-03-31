@@ -1,9 +1,5 @@
 # Full Stack FastAPI Template
 
-<a href="https://github.com/fastapi/full-stack-fastapi-template/actions?query=workflow%3A%22Test+Docker+Compose%22" target="_blank"><img src="https://github.com/fastapi/full-stack-fastapi-template/workflows/Test%20Docker%20Compose/badge.svg" alt="Test Docker Compose"></a>
-<a href="https://github.com/fastapi/full-stack-fastapi-template/actions?query=workflow%3A%22Test+Backend%22" target="_blank"><img src="https://github.com/fastapi/full-stack-fastapi-template/workflows/Test%20Backend/badge.svg" alt="Test Backend"></a>
-<a href="https://coverage-badge.samuelcolvin.workers.dev/redirect/fastapi/full-stack-fastapi-template" target="_blank"><img src="https://coverage-badge.samuelcolvin.workers.dev/fastapi/full-stack-fastapi-template.svg" alt="Coverage"></a>
-
 ## Technology Stack and Features
 
 - ⚡ [**FastAPI**](https://fastapi.tiangolo.com) for the Python backend API.
@@ -26,63 +22,54 @@
 - 🚢 Deployment instructions using Docker Compose, including how to set up a frontend Traefik proxy to handle automatic HTTPS certificates.
 - 🏭 CI (continuous integration) and CD (continuous deployment) based on GitHub Actions.
 
-### Dashboard Login
+## Remote CI/CD Pipeline Flow Architecture
 
-[![API docs](img/login.png)](https://github.com/fastapi/full-stack-fastapi-template)
+This project follows a professional CI/CD pipeline flow designed for security, quality, and reliability.
 
-### Dashboard - Admin
+### Roles
+- **Developer**: Responsible for code development and initiating the pipeline through commits.
+- **Lead / Manager**: Responsible for overseeing code quality and providing final approvals.
+- **Admin**: Responsible for infrastructure management and operational security.
 
-[![API docs](img/dashboard.png)](https://github.com/fastapi/full-stack-fastapi-template)
+### Automated CI/CD Actions
 
-### Dashboard - Items
-
-[![API docs](img/dashboard-items.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-### Dashboard - Dark Mode
-
-[![API docs](img/dashboard-dark.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-### Interactive API Documentation
-
-[![API docs](img/docs.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-## CI/CD Pipeline Flow Architecture
-
-The CI/CD pipeline is designed to automate the process of integrating, testing, and deploying new features. The pipeline is triggered on every commit to the GitHub repository and is composed of the following stages:
-
-1.  **JIRA Integration Validation**: Validates the JIRA ticket, checks branch rules, and enforces PR templates.
-2.  **Code Quality & Testing**: Runs Pytest for automated testing, performs linting with Flake8, and validates code coverage.
+1.  **JIRA Integration Validation**:
+    - Validate JIRA ticket.
+    - Check branch rules.
+    - Enforce PR template.
+2.  **Code Quality & Testing**:
+    - Run Pytest.
+    - Linting (flake8).
+    - Coverage Validation.
 3.  **Security Scanning**:
-    *   **SAST (Static Application Security Testing)**: Scans the source code for security vulnerabilities.
-    *   **Secrets Detection**: Scans for any hardcoded secrets or credentials.
-    *   **Dependency Scanning**: Checks for vulnerabilities in the project's dependencies.
-4.  **CD - Promotion**: Builds the Docker image and tags it with a version.
-5.  **Containerization & Image Registry**:
-    *   Builds the Docker image and tags it with a version.
-    *   Pushes the image to Amazon ECR (Elastic Container Registry).
-    *   Scans the ECR image for vulnerabilities.
-6.  **Security Gate (Validation)**: A security gate that stops the deployment if vulnerabilities are found.
-7.  **CD - Test Env**:
-    *   Deploys the application to a test environment using ArgoCD.
-    *   ArgoCD automatically syncs the manifest and runs smoke tests.
-8.  **Approval Gate**: A manual approval step is required before deploying to production.
-9.  **CD - Production**:
-    *   ArgoCD syncs the application to the production environment.
-    *   Post-deployment validation is performed.
+    - SAST (Code scanning).
+    - Secrets detection.
+    - Dependency scanning.
+4.  **CD - Promotion**:
+    - Build Docker Image.
+    - Tags with Version.
 
-## Security Measures
+### Pipeline Flow
 
-This project incorporates several security measures to ensure the integrity and security of the application:
+The pipeline is triggered by a **Developer Commit** to the **GitHub Repository**, which triggers the **GitHub Actions Pipeline**.
 
-*   **Code Scanning**: Static Application Security Testing (SAST) is integrated into the CI/CD pipeline to identify potential security vulnerabilities in the source code.
-*   **Secrets Detection**: The pipeline scans for any accidentally committed secrets or credentials to prevent security breaches.
-*   **Dependency Scanning**: All project dependencies are scanned for known vulnerabilities to ensure that only secure third-party libraries are used.
-*   **Image Scanning**: Docker images are scanned for vulnerabilities before being pushed to the container registry, and again in the registry, to prevent the deployment of insecure containers.
-*   **IAM Access Control**: Proper IAM roles and policies are in place to ensure that only authorized personnel have access to the infrastructure.
-*   **Pipeline Monitoring**: The CI/CD pipeline is monitored to detect any anomalies or failures in the deployment process.
-*   **Container Security Monitoring**: The running containers are monitored for any security threats or vulnerabilities.
-*   **Deployment Notifications**: Notifications are sent to the team via Slack/Teams to keep everyone informed about the deployment status.
-*   **Data Protection / Backup**: Regular backups of the database and other critical data are performed to prevent data loss.
+- **Containerization**: Build Docker Image and Tag with Version.
+- **Image Registry**: Push Image to **Amazon ECR** and perform **ECR Vulnerability Scan**.
+- **Security Gate (Validation)**: A critical automated gate that evaluates security scan results. If the scan fails, the deployment is stopped.
+- **CD - Test Env**: Automated deployment via **ArgoCD**. Includes Manifest Update, Auto Sync Test, and Smoke Tests.
+- **Approval Gate**: A **Manual Approval Required** step before any production deployment.
+- **CD - Production**: Production deployment via **ArgoCD Sync**. Includes Post-Deploy Validation.
+- **Deployment Successful**: Final verification of the live environment.
+
+### Operation Management
+
+The following operational pillars ensure the long-term health and security of the application:
+
+- **IAM Access Control**: Granular permission management for all users and services.
+- **Pipeline Monitoring (Dashboard)**: Visual tracking of pipeline performance and failures.
+- **Container Security Monitoring**: Real-time monitoring of running containers for threats.
+- **Deployment Notifications (Slack / Teams)**: Automated alerts for all deployment activities.
+- **Data Protection / Backup**: Automated backup strategies and data encryption.
 
 ## How To Use It
 

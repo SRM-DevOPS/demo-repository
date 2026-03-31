@@ -69,7 +69,7 @@ You should see an output like:
 root@7f2607af31c3:/app#
 ```
 
-that means that you are in a `bash` session inside your container, as a `root` user, under the `/app` directory, this directory has another directory called "app" inside, that's where your code lives inside the container: `/app/app`.
+that means that you are in a `bash` session inside your container, as a `root` user, under the `/app" directory, this directory has another directory called "app" inside, that's where your code lives inside the container: `/app/app`.
 
 There you can use the `fastapi run --reload` command to run the debug live reloading server.
 
@@ -170,3 +170,49 @@ The email templates are in `./backend/app/email-templates/`. Here, there are two
 Before continuing, ensure you have the [MJML extension](https://github.com/mjmlio/vscode-mjml) installed in your VS Code.
 
 Once you have the MJML extension installed, you can create a new email template in the `src` directory. After creating the new email template and with the `.mjml` file open in your editor, open the command palette with `Ctrl+Shift+P` and search for `MJML: Export to HTML`. This will convert the `.mjml` file to a `.html` file and now you can save it in the build directory.
+
+## CI/CD Pipeline & Security
+
+The backend application follows a robust CI/CD pipeline as depicted in the Remote CI/CD Pipeline Flow Architecture.
+
+### Pipeline Flow
+
+The pipeline is triggered by a **Developer Commit** to the GitHub repository.
+
+1.  **JIRA Integration Validation**:
+    *   Validate JIRA ticket.
+    *   Check branch rules.
+    *   Enforce PR template.
+2.  **Code Quality & Testing**:
+    *   Run Pytest (automated testing).
+    *   Linting with Flake8 (ensure code style consistency).
+    *   Coverage Validation (maintain high test coverage).
+3.  **Security Scanning**:
+    *   **SAST (Static Application Security Testing)**: Scans the source code for potential security vulnerabilities.
+    *   **Secrets Detection**: Prevents accidentally committing credentials or secrets.
+    *   **Dependency Scanning**: Checks for known vulnerabilities in third-party libraries.
+4.  **CD - Promotion & Containerization**:
+    *   Build Docker Image and Tag with Version.
+5.  **Image Registry**:
+    *   Push Docker Image to Amazon ECR.
+    *   Perform ECR Vulnerability Scan.
+6.  **Security Gate (Validation)**:
+    *   Automated validation step to ensure security compliance.
+7.  **CD - Test Env**:
+    *   ArgoCD updates manifests and syncs to the test environment.
+    *   Automated sync tests and smoke tests are performed.
+8.  **Approval Gate**:
+    *   A manual approval step is required before moving to production.
+9.  **CD - Production**:
+    *   ArgoCD syncs the production environment.
+    *   Post-deployment validation is performed to ensure a successful release.
+
+### Operation Management & Security Measures
+
+The following measures are implemented to ensure the security and reliability of the backend infrastructure:
+
+*   **IAM Access Control**: Strict access management using AWS IAM.
+*   **Pipeline Monitoring**: Real-time monitoring of the pipeline status through a dashboard.
+*   **Container Security Monitoring**: Continuous security checks for running containers.
+*   **Deployment Notifications**: Instant alerts via Slack or Teams for deployment updates.
+*   **Data Protection & Backup**: Regular backups and data protection strategies.
