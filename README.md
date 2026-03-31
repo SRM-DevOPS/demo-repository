@@ -46,6 +46,44 @@
 
 [![API docs](img/docs.png)](https://github.com/fastapi/full-stack-fastapi-template)
 
+## CI/CD Pipeline Flow Architecture
+
+The CI/CD pipeline is designed to automate the process of integrating, testing, and deploying new features. The pipeline is triggered on every commit to the GitHub repository and is composed of the following stages:
+
+1.  **JIRA Integration Validation**: Validates the JIRA ticket, checks branch rules, and enforces PR templates.
+2.  **Code Quality & Testing**: Runs Pytest for automated testing, performs linting with Flake8, and validates code coverage.
+3.  **Security Scanning**:
+    *   **SAST (Static Application Security Testing)**: Scans the source code for security vulnerabilities.
+    *   **Secrets Detection**: Scans for any hardcoded secrets or credentials.
+    *   **Dependency Scanning**: Checks for vulnerabilities in the project's dependencies.
+4.  **CD - Promotion**: Builds the Docker image and tags it with a version.
+5.  **Containerization & Image Registry**:
+    *   Builds the Docker image and tags it with a version.
+    *   Pushes the image to Amazon ECR (Elastic Container Registry).
+    *   Scans the ECR image for vulnerabilities.
+6.  **Security Gate (Validation)**: A security gate that stops the deployment if vulnerabilities are found.
+7.  **CD - Test Env**:
+    *   Deploys the application to a test environment using ArgoCD.
+    *   ArgoCD automatically syncs the manifest and runs smoke tests.
+8.  **Approval Gate**: A manual approval step is required before deploying to production.
+9.  **CD - Production**:
+    *   ArgoCD syncs the application to the production environment.
+    *   Post-deployment validation is performed.
+
+## Security Measures
+
+This project incorporates several security measures to ensure the integrity and security of the application:
+
+*   **Code Scanning**: Static Application Security Testing (SAST) is integrated into the CI/CD pipeline to identify potential security vulnerabilities in the source code.
+*   **Secrets Detection**: The pipeline scans for any accidentally committed secrets or credentials to prevent security breaches.
+*   **Dependency Scanning**: All project dependencies are scanned for known vulnerabilities to ensure that only secure third-party libraries are used.
+*   **Image Scanning**: Docker images are scanned for vulnerabilities before being pushed to the container registry, and again in the registry, to prevent the deployment of insecure containers.
+*   **IAM Access Control**: Proper IAM roles and policies are in place to ensure that only authorized personnel have access to the infrastructure.
+*   **Pipeline Monitoring**: The CI/CD pipeline is monitored to detect any anomalies or failures in the deployment process.
+*   **Container Security Monitoring**: The running containers are monitored for any security threats or vulnerabilities.
+*   **Deployment Notifications**: Notifications are sent to the team via Slack/Teams to keep everyone informed about the deployment status.
+*   **Data Protection / Backup**: Regular backups of the database and other critical data are performed to prevent data loss.
+
 ## How To Use It
 
 You can **just fork or clone** this repository and use it as is.
