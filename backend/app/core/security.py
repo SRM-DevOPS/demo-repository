@@ -12,8 +12,8 @@ from app.core.config import settings
 if settings.ENVIRONMENT == "local":
     password_hash = PasswordHash(
         (
-            BcryptHasher(rounds=4),
             Argon2Hasher(time_cost=1, memory_cost=8, parallelism=1),
+            BcryptHasher(rounds=4),
         )
     )
 else:
