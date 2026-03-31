@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlmodel import Session, SQLModel
 
+from app.api.deps import get_db
 from app.core.config import settings
 from app.core.db import engine, init_db
 from app.main import app
@@ -18,13 +19,16 @@ def db() -> Generator[Session, None, None]:
         SQLModel.metadata.create_all(engine)
         init_db(session)
         yield session
-        SQLModel.metadata.drop_all(engine)
+        session.close()
+
 
 
 @pytest.fixture(scope="module")
-def client() -> Generator[TestClient, None, None]:
+def client(db: Session) -> Generator[TestClient, None, None]:
+    app.dependency_overrides[get_db] = lambda: db
     with TestClient(app) as c:
         yield c
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture(scope="module")

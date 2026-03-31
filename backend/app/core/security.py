@@ -8,12 +8,21 @@ from pwdlib.hashers.bcrypt import BcryptHasher
 
 from app.core.config import settings
 
-password_hash = PasswordHash(
-    (
-        Argon2Hasher(),
-        BcryptHasher(),
+# Use a faster hasher for local/testing to speed up tests
+if settings.ENVIRONMENT == "local":
+    password_hash = PasswordHash(
+        (
+            BcryptHasher(rounds=4),
+            Argon2Hasher(time_cost=1, memory_cost=8, parallelism=1),
+        )
     )
-)
+else:
+    password_hash = PasswordHash(
+        (
+            Argon2Hasher(),
+            BcryptHasher(),
+        )
+    )
 
 
 ALGORITHM = "HS256"
