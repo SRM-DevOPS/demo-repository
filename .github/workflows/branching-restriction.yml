@@ -6,8 +6,7 @@ on:
     branches:
       - main
   create:
-    branches:
-      - '*'
+  
 
 jobs:
   validate-branch:
