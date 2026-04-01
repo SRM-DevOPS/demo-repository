@@ -1,30 +1,57 @@
-name: Build, Push to ECR & Deploy to ECS
+name: Backend - Build, Scan, Push & Deploy (Single ECR Repo)
 
 on:
   push:
     branches:
       - main
-      - feature/*
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend-ecr.yml"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
-    env:
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-      ECR_REPO: ${{ secrets.ECR_REPO }}
-      ECS_CLUSTER: ${{ secrets.ECS_CLUSTER }}
-      ECS_SERVICE: ${{ secrets.ECS_SERVICE }}
-      ECS_TASK_DEFINITION: ${{ secrets.ECS_TASK_DEFINITION }}
-      CONTAINER_NAME: ${{ secrets.CONTAINER_NAME }}
-
     steps:
-      # 1️⃣ Checkout code
-      - name: Checkout
+      # 1️⃣ Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      # 2️⃣ Configure AWS
+      # 2️⃣ Set Environment based on branch
+      - name: Set Environment
+        run: |
+          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            echo "ENV=prod" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF}" == "refs/heads/uat" ]]; then
+            echo "ENV=uat" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF}" == "refs/heads/integration" ]]; then
+            echo "ENV=int" >> $GITHUB_ENV
+          else
+            echo "ENV=dev" >> $GITHUB_ENV
+          fi
+
+      # 3️⃣ Set dynamic variables per env
+      - name: Load Env Config
+        run: |
+          if [[ "$ENV" == "prod" ]]; then
+            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_PROD }}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_BACKEND_PROD }}" >> $GITHUB_ENV
+            echo "TASK_DEF=${{ secrets.ECS_TASK_DEF_BACKEND_PROD }}" >> $GITHUB_ENV
+          elif [[ "$ENV" == "uat" ]]; then
+            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_UAT }}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_BACKEND_UAT }}" >> $GITHUB_ENV
+            echo "TASK_DEF=${{ secrets.ECS_TASK_DEF_BACKEND_UAT }}" >> $GITHUB_ENV
+          elif [[ "$ENV" == "int" ]]; then
+            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_INT }}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_BACKEND_INT }}" >> $GITHUB_ENV
+            echo "TASK_DEF=${{ secrets.ECS_TASK_DEF_BACKEND_INT }}" >> $GITHUB_ENV
+          fi
+
+          echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
+          echo "AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}" >> $GITHUB_ENV
+          echo "ECR_REPO=${{ secrets.ECR_REPO }}" >> $GITHUB_ENV
+
+      # 4️⃣ Configure AWS
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -32,7 +59,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # 3️⃣ Login to ECR
+      # 5️⃣ Login to ECR
       - name: Login to ECR
         run: |
           aws ecr get-login-password \
@@ -40,75 +67,76 @@ jobs:
           --username AWS \
           --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
-      # 4️⃣ Get previous image tag
-      - name: Get previous image
-        id: prev
-        run: |
-          aws ecr describe-images \
-            --repository-name $ECR_REPO \
-            --query 'sort_by(imageDetails,& imagePushedAt)[-1].imageTags[0]' \
-            --output text > previous.txt || echo "none" > previous.txt
-
-          PREV=$(cat previous.txt)
-          echo "Previous image: $PREV"
-          echo "PREVIOUS=$PREV" >> $GITHUB_ENV
-
-      # 5️⃣ Set new version
-      - name: Set version
+      # 6️⃣ Version
+      - name: Set Version
         run: |
           VERSION=${GITHUB_SHA::7}
           echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-      # 6️⃣ Build Docker image
-      - name: Build image
-        run: |
-          docker build -t $ECR_REPO:$VERSION .
+      # 7️⃣ Build Images
+      - name: Build Backend
+        run: docker build -t backend:$VERSION ./backend
 
-      # 7️⃣ Tag image
-      - name: Tag image
+      # 8️⃣ Install Trivy
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      # 9️⃣ Scan Images (STRICT)
+      - name: Scan Backend
+        run: trivy image --exit-code 1 --severity HIGH,CRITICAL backend:$VERSION
+
+      # 🔟 Tag Images
+      - name: Tag Images
         run: |
           IMAGE_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO
 
-          docker tag $ECR_REPO:$VERSION $IMAGE_URI:$VERSION
-          docker tag $ECR_REPO:$VERSION $IMAGE_URI:latest
+          docker tag backend:$VERSION $IMAGE_URI:backend-$VERSION
+          docker tag backend:$VERSION $IMAGE_URI:backend-$ENV-latest
 
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
 
-      # 8️⃣ Push to ECR
-      - name: Push image
+      # 1️⃣1️⃣ Push (ONLY if scan passed)
+      - name: Push Images
         run: |
-          docker push $IMAGE_URI:$VERSION
-          docker push $IMAGE_URI:latest
+          docker push $IMAGE_URI:backend-$VERSION
+          docker push $IMAGE_URI:backend-$ENV-latest
 
-      # 9️⃣ Install jq (needed for JSON edit)
+      # 1️⃣2️⃣ Install jq
       - name: Install jq
         run: sudo apt-get install -y jq
 
-      # 🔟 Get current task definition
-      - name: Fetch task definition
+      # 1️⃣3️⃣ Fetch Task Definition
+      - name: Fetch Task Definition
         run: |
           aws ecs describe-task-definition \
-          --task-definition $ECS_TASK_DEFINITION \
-          --query taskDefinition > task-def.json
+          --task-definition $TASK_DEF \
+          --query taskDefinition > task.json
 
-      # 1️⃣1️⃣ Update image in task definition
-      - name: Update task definition
+      # 1️⃣4️⃣ Update images in task
+      - name: Update Task Definition
         run: |
-          jq --arg IMAGE "$IMAGE_URI:$VERSION" \
-          --arg NAME "$CONTAINER_NAME" \
-          '.containerDefinitions |= map(
-            if .name == $NAME then .image = $IMAGE else . end
-          )' task-def.json > new-task-def.json
+          jq --arg BACK "$IMAGE_URI:backend-$VERSION" \
+             '
+             .containerDefinitions |= map(
+               if .name == "backend" then .image = $BACK else . end
+             )
+             ' task.json > new-task.json
 
-      # 1️⃣2️⃣ Register new task definition
-      - name: Register task definition
+      # 1️⃣5️⃣ Register new revision
+      - name: Register Task
         run: |
           aws ecs register-task-definition \
-          --cli-input-json file://new-task-def.json
+          --cli-input-json file://new-task.json
 
-      # 1️⃣3️⃣ Deploy to ECS
+      # 1️⃣6️⃣ Deploy (skip for feature branches)
       - name: Deploy to ECS
-        if: github.ref == 'refs/heads/main'
+        if: env.ENV != 'dev'
         run: |
           aws ecs update-service \
           --cluster $ECS_CLUSTER \
