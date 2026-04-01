@@ -85,20 +85,41 @@ jobs:
           aws-region:            ${{ secrets.AWS_REGION }}
       - name: Validate environment secrets
         run: |
-          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ]; then
-            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME must be defined for 'integration' environment."
+          MISSING=()
+          [ -z "${{ secrets.ECS_CLUSTER }}" ] && MISSING+=("ECS_CLUSTER")
+          [ -z "${{ secrets.FRONTEND_ECS_SERVICE }}" ] && MISSING+=("FRONTEND_ECS_SERVICE")
+          [ -z "${{ secrets.FRONTEND_ECS_TASK_DEFINITION }}" ] && MISSING+=("FRONTEND_ECS_TASK_DEFINITION")
+          [ -z "${{ secrets.FRONTEND_CONTAINER_NAME }}" ] && MISSING+=("FRONTEND_CONTAINER_NAME")
+
+          if [ ${#MISSING[@]} -ne 0 ]; then
+            echo "::error title=Missing environment secrets::Missing in 'integration' environment: ${MISSING[*]}"
+            exit 1
+          fi
+      - name: Verify task definition exists
+        run: |
+          set +e
+          aws ecs describe-task-definition \
+            --task-definition "${{ secrets.FRONTEND_ECS_TASK_DEFINITION }}" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text
+          STATUS=$?
+          set -e
+          if [ $STATUS -ne 0 ]; then
+            echo "::error title=Invalid FRONTEND_ECS_TASK_DEFINITION::Cannot describe task definition '${{ secrets.FRONTEND_ECS_TASK_DEFINITION }}'. Ensure it is a task definition family name or full ARN in the same AWS account/region, and that the IAM user has ecs:DescribeTaskDefinition."
+            echo "Recent task definitions in this region/account:"
+            aws ecs list-task-definitions --sort DESC --max-items 20 --output text || true
             exit 1
           fi
       - name: Fetch task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition "${{ secrets.ECS_TASK_DEFINITION }}" \
+            --task-definition "${{ secrets.FRONTEND_ECS_TASK_DEFINITION }}" \
             --query taskDefinition > task.json
       - name: Update task image
         run: |
           IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
           VERSION=${{ needs.build-scan-push.outputs.version }}
-          jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.CONTAINER_NAME }}" '
+          jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.FRONTEND_CONTAINER_NAME }}" '
             .containerDefinitions |= map(
               if .name == $NAME then .image = $IMG else . end
             )
@@ -118,7 +139,7 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster "${{ secrets.ECS_CLUSTER }}" \
-            --service "${{ secrets.ECS_SERVICE }}" \
+            --service "${{ secrets.FRONTEND_ECS_SERVICE }}" \
             --force-new-deployment
 
   deploy-uat:
@@ -134,20 +155,41 @@ jobs:
           aws-region:            ${{ secrets.AWS_REGION }}
       - name: Validate environment secrets
         run: |
-          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ]; then
-            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME must be defined for 'uat' environment."
+          MISSING=()
+          [ -z "${{ secrets.ECS_CLUSTER }}" ] && MISSING+=("ECS_CLUSTER")
+          [ -z "${{ secrets.FRONTEND_ECS_SERVICE }}" ] && MISSING+=("FRONTEND_ECS_SERVICE")
+          [ -z "${{ secrets.FRONTEND_ECS_TASK_DEFINITION }}" ] && MISSING+=("FRONTEND_ECS_TASK_DEFINITION")
+          [ -z "${{ secrets.FRONTEND_CONTAINER_NAME }}" ] && MISSING+=("FRONTEND_CONTAINER_NAME")
+
+          if [ ${#MISSING[@]} -ne 0 ]; then
+            echo "::error title=Missing environment secrets::Missing in 'uat' environment: ${MISSING[*]}"
+            exit 1
+          fi
+      - name: Verify task definition exists
+        run: |
+          set +e
+          aws ecs describe-task-definition \
+            --task-definition "${{ secrets.FRONTEND_ECS_TASK_DEFINITION }}" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text
+          STATUS=$?
+          set -e
+          if [ $STATUS -ne 0 ]; then
+            echo "::error title=Invalid FRONTEND_ECS_TASK_DEFINITION::Cannot describe task definition '${{ secrets.FRONTEND_ECS_TASK_DEFINITION }}'. Ensure it is a task definition family name or full ARN in the same AWS account/region, and that the IAM user has ecs:DescribeTaskDefinition."
+            echo "Recent task definitions in this region/account:"
+            aws ecs list-task-definitions --sort DESC --max-items 20 --output text || true
             exit 1
           fi
       - name: Fetch task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition "${{ secrets.ECS_TASK_DEFINITION }}" \
+            --task-definition "${{ secrets.FRONTEND_ECS_TASK_DEFINITION }}" \
             --query taskDefinition > task.json
       - name: Update task image
         run: |
           IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
           VERSION=${{ needs.build-scan-push.outputs.version }}
-          jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.CONTAINER_NAME }}" '
+          jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.FRONTEND_CONTAINER_NAME }}" '
             .containerDefinitions |= map(
               if .name == $NAME then .image = $IMG else . end
             )
@@ -167,7 +209,7 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster "${{ secrets.ECS_CLUSTER }}" \
-            --service "${{ secrets.ECS_SERVICE }}" \
+            --service "${{ secrets.FRONTEND_ECS_SERVICE }}" \
             --force-new-deployment
 
   deploy-production:
@@ -183,20 +225,41 @@ jobs:
           aws-region:            ${{ secrets.AWS_REGION }}
       - name: Validate environment secrets
         run: |
-          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ]; then
-            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME must be defined for 'production' environment."
+          MISSING=()
+          [ -z "${{ secrets.ECS_CLUSTER }}" ] && MISSING+=("ECS_CLUSTER")
+          [ -z "${{ secrets.FRONTEND_ECS_SERVICE }}" ] && MISSING+=("FRONTEND_ECS_SERVICE")
+          [ -z "${{ secrets.FRONTEND_ECS_TASK_DEFINITION }}" ] && MISSING+=("FRONTEND_ECS_TASK_DEFINITION")
+          [ -z "${{ secrets.FRONTEND_CONTAINER_NAME }}" ] && MISSING+=("FRONTEND_CONTAINER_NAME")
+
+          if [ ${#MISSING[@]} -ne 0 ]; then
+            echo "::error title=Missing environment secrets::Missing in 'production' environment: ${MISSING[*]}"
+            exit 1
+          fi
+      - name: Verify task definition exists
+        run: |
+          set +e
+          aws ecs describe-task-definition \
+            --task-definition "${{ secrets.FRONTEND_ECS_TASK_DEFINITION }}" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text
+          STATUS=$?
+          set -e
+          if [ $STATUS -ne 0 ]; then
+            echo "::error title=Invalid FRONTEND_ECS_TASK_DEFINITION::Cannot describe task definition '${{ secrets.FRONTEND_ECS_TASK_DEFINITION }}'. Ensure it is a task definition family name or full ARN in the same AWS account/region, and that the IAM user has ecs:DescribeTaskDefinition."
+            echo "Recent task definitions in this region/account:"
+            aws ecs list-task-definitions --sort DESC --max-items 20 --output text || true
             exit 1
           fi
       - name: Fetch task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition "${{ secrets.ECS_TASK_DEFINITION }}" \
+            --task-definition "${{ secrets.FRONTEND_ECS_TASK_DEFINITION }}" \
             --query taskDefinition > task.json
       - name: Update task image
         run: |
           IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
           VERSION=${{ needs.build-scan-push.outputs.version }}
-          jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.CONTAINER_NAME }}" '
+          jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.FRONTEND_CONTAINER_NAME }}" '
             .containerDefinitions |= map(
               if .name == $NAME then .image = $IMG else . end
             )
@@ -216,5 +279,5 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster "${{ secrets.ECS_CLUSTER }}" \
-            --service "${{ secrets.ECS_SERVICE }}" \
+            --service "${{ secrets.FRONTEND_ECS_SERVICE }}" \
             --force-new-deployment
