@@ -85,8 +85,22 @@ jobs:
           aws-region:            ${{ secrets.AWS_REGION }}
       - name: Validate environment secrets
         run: |
-          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ] || [ -z "${{ secrets.PROJECT_NAME }}" ] || [ -z "${{ secrets.POSTGRES_SERVER }}" ] || [ -z "${{ secrets.POSTGRES_USER }}" ] || [ -z "${{ secrets.POSTGRES_PASSWORD }}" ] || [ -z "${{ secrets.POSTGRES_DB }}" ] || [ -z "${{ secrets.SECRET_KEY }}" ] || [ -z "${{ secrets.FIRST_SUPERUSER }}" ] || [ -z "${{ secrets.FIRST_SUPERUSER_PASSWORD }}" ]; then
-            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME and app settings (PROJECT_NAME/POSTGRES_*/SECRET_KEY/FIRST_SUPERUSER*) must be defined for 'integration' environment."
+          MISSING=()
+          [ -z "${{ secrets.ECS_CLUSTER }}" ] && MISSING+=("ECS_CLUSTER")
+          [ -z "${{ secrets.ECS_SERVICE }}" ] && MISSING+=("ECS_SERVICE")
+          [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] && MISSING+=("ECS_TASK_DEFINITION")
+          [ -z "${{ secrets.CONTAINER_NAME }}" ] && MISSING+=("CONTAINER_NAME")
+          [ -z "${{ secrets.PROJECT_NAME }}" ] && MISSING+=("PROJECT_NAME")
+          [ -z "${{ secrets.POSTGRES_SERVER }}" ] && MISSING+=("POSTGRES_SERVER")
+          [ -z "${{ secrets.POSTGRES_USER }}" ] && MISSING+=("POSTGRES_USER")
+          [ -z "${{ secrets.POSTGRES_PASSWORD }}" ] && MISSING+=("POSTGRES_PASSWORD")
+          [ -z "${{ secrets.POSTGRES_DB }}" ] && MISSING+=("POSTGRES_DB")
+          [ -z "${{ secrets.SECRET_KEY }}" ] && MISSING+=("SECRET_KEY")
+          [ -z "${{ secrets.FIRST_SUPERUSER }}" ] && MISSING+=("FIRST_SUPERUSER")
+          [ -z "${{ secrets.FIRST_SUPERUSER_PASSWORD }}" ] && MISSING+=("FIRST_SUPERUSER_PASSWORD")
+
+          if [ ${#MISSING[@]} -ne 0 ]; then
+            echo "::error title=Missing environment secrets::Missing in 'integration' environment: ${MISSING[*]}"
             exit 1
           fi
       - name: Fetch task definition
@@ -170,8 +184,22 @@ jobs:
           aws-region:            ${{ secrets.AWS_REGION }}
       - name: Validate environment secrets
         run: |
-          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ] || [ -z "${{ secrets.PROJECT_NAME }}" ] || [ -z "${{ secrets.POSTGRES_SERVER }}" ] || [ -z "${{ secrets.POSTGRES_USER }}" ] || [ -z "${{ secrets.POSTGRES_PASSWORD }}" ] || [ -z "${{ secrets.POSTGRES_DB }}" ] || [ -z "${{ secrets.SECRET_KEY }}" ] || [ -z "${{ secrets.FIRST_SUPERUSER }}" ] || [ -z "${{ secrets.FIRST_SUPERUSER_PASSWORD }}" ]; then
-            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME and app settings (PROJECT_NAME/POSTGRES_*/SECRET_KEY/FIRST_SUPERUSER*) must be defined for 'uat' environment."
+          MISSING=()
+          [ -z "${{ secrets.ECS_CLUSTER }}" ] && MISSING+=("ECS_CLUSTER")
+          [ -z "${{ secrets.ECS_SERVICE }}" ] && MISSING+=("ECS_SERVICE")
+          [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] && MISSING+=("ECS_TASK_DEFINITION")
+          [ -z "${{ secrets.CONTAINER_NAME }}" ] && MISSING+=("CONTAINER_NAME")
+          [ -z "${{ secrets.PROJECT_NAME }}" ] && MISSING+=("PROJECT_NAME")
+          [ -z "${{ secrets.POSTGRES_SERVER }}" ] && MISSING+=("POSTGRES_SERVER")
+          [ -z "${{ secrets.POSTGRES_USER }}" ] && MISSING+=("POSTGRES_USER")
+          [ -z "${{ secrets.POSTGRES_PASSWORD }}" ] && MISSING+=("POSTGRES_PASSWORD")
+          [ -z "${{ secrets.POSTGRES_DB }}" ] && MISSING+=("POSTGRES_DB")
+          [ -z "${{ secrets.SECRET_KEY }}" ] && MISSING+=("SECRET_KEY")
+          [ -z "${{ secrets.FIRST_SUPERUSER }}" ] && MISSING+=("FIRST_SUPERUSER")
+          [ -z "${{ secrets.FIRST_SUPERUSER_PASSWORD }}" ] && MISSING+=("FIRST_SUPERUSER_PASSWORD")
+
+          if [ ${#MISSING[@]} -ne 0 ]; then
+            echo "::error title=Missing environment secrets::Missing in 'uat' environment: ${MISSING[*]}"
             exit 1
           fi
       - name: Fetch task definition
@@ -255,8 +283,22 @@ jobs:
           aws-region:            ${{ secrets.AWS_REGION }}
       - name: Validate environment secrets
         run: |
-          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ] || [ -z "${{ secrets.PROJECT_NAME }}" ] || [ -z "${{ secrets.POSTGRES_SERVER }}" ] || [ -z "${{ secrets.POSTGRES_USER }}" ] || [ -z "${{ secrets.POSTGRES_PASSWORD }}" ] || [ -z "${{ secrets.POSTGRES_DB }}" ] || [ -z "${{ secrets.SECRET_KEY }}" ] || [ -z "${{ secrets.FIRST_SUPERUSER }}" ] || [ -z "${{ secrets.FIRST_SUPERUSER_PASSWORD }}" ]; then
-            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME and app settings (PROJECT_NAME/POSTGRES_*/SECRET_KEY/FIRST_SUPERUSER*) must be defined for 'production' environment."
+          MISSING=()
+          [ -z "${{ secrets.ECS_CLUSTER }}" ] && MISSING+=("ECS_CLUSTER")
+          [ -z "${{ secrets.ECS_SERVICE }}" ] && MISSING+=("ECS_SERVICE")
+          [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] && MISSING+=("ECS_TASK_DEFINITION")
+          [ -z "${{ secrets.CONTAINER_NAME }}" ] && MISSING+=("CONTAINER_NAME")
+          [ -z "${{ secrets.PROJECT_NAME }}" ] && MISSING+=("PROJECT_NAME")
+          [ -z "${{ secrets.POSTGRES_SERVER }}" ] && MISSING+=("POSTGRES_SERVER")
+          [ -z "${{ secrets.POSTGRES_USER }}" ] && MISSING+=("POSTGRES_USER")
+          [ -z "${{ secrets.POSTGRES_PASSWORD }}" ] && MISSING+=("POSTGRES_PASSWORD")
+          [ -z "${{ secrets.POSTGRES_DB }}" ] && MISSING+=("POSTGRES_DB")
+          [ -z "${{ secrets.SECRET_KEY }}" ] && MISSING+=("SECRET_KEY")
+          [ -z "${{ secrets.FIRST_SUPERUSER }}" ] && MISSING+=("FIRST_SUPERUSER")
+          [ -z "${{ secrets.FIRST_SUPERUSER_PASSWORD }}" ] && MISSING+=("FIRST_SUPERUSER_PASSWORD")
+
+          if [ ${#MISSING[@]} -ne 0 ]; then
+            echo "::error title=Missing environment secrets::Missing in 'production' environment: ${MISSING[*]}"
             exit 1
           fi
       - name: Fetch task definition
