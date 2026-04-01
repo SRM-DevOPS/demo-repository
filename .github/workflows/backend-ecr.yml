@@ -87,9 +87,9 @@ jobs:
         run: |
           MISSING=()
           [ -z "${{ secrets.ECS_CLUSTER }}" ] && MISSING+=("ECS_CLUSTER")
-          [ -z "${{ secrets.ECS_SERVICE }}" ] && MISSING+=("ECS_SERVICE")
-          [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] && MISSING+=("ECS_TASK_DEFINITION")
-          [ -z "${{ secrets.CONTAINER_NAME }}" ] && MISSING+=("CONTAINER_NAME")
+          [ -z "${{ secrets.BACKEND_ECS_SERVICE }}" ] && MISSING+=("BACKEND_ECS_SERVICE")
+          [ -z "${{ secrets.BACKEND_ECS_TASK_DEFINITION }}" ] && MISSING+=("BACKEND_ECS_TASK_DEFINITION")
+          [ -z "${{ secrets.BACKEND_CONTAINER_NAME }}" ] && MISSING+=("BACKEND_CONTAINER_NAME")
           [ -z "${{ secrets.PROJECT_NAME }}" ] && MISSING+=("PROJECT_NAME")
           [ -z "${{ secrets.POSTGRES_SERVER }}" ] && MISSING+=("POSTGRES_SERVER")
           [ -z "${{ secrets.POSTGRES_USER }}" ] && MISSING+=("POSTGRES_USER")
@@ -103,10 +103,25 @@ jobs:
             echo "::error title=Missing environment secrets::Missing in 'integration' environment: ${MISSING[*]}"
             exit 1
           fi
+      - name: Verify task definition exists
+        run: |
+          set +e
+          aws ecs describe-task-definition \
+            --task-definition "${{ secrets.BACKEND_ECS_TASK_DEFINITION }}" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text
+          STATUS=$?
+          set -e
+          if [ $STATUS -ne 0 ]; then
+            echo "::error title=Invalid BACKEND_ECS_TASK_DEFINITION::Cannot describe task definition '${{ secrets.BACKEND_ECS_TASK_DEFINITION }}'. Ensure it is a task definition family name or full ARN in the same AWS account/region, and that the IAM user has ecs:DescribeTaskDefinition."
+            echo "Recent task definitions in this region/account:"
+            aws ecs list-task-definitions --sort DESC --max-items 20 --output text || true
+            exit 1
+          fi
       - name: Fetch task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition "${{ secrets.ECS_TASK_DEFINITION }}" \
+            --task-definition "${{ secrets.BACKEND_ECS_TASK_DEFINITION }}" \
             --query taskDefinition > task.json
       - name: Update task image
         run: |
@@ -115,7 +130,7 @@ jobs:
           APP_ENVIRONMENT=staging
           jq \
             --arg IMG "$IMAGE_URI:backend-$VERSION" \
-            --arg NAME "${{ secrets.CONTAINER_NAME }}" \
+            --arg NAME "${{ secrets.BACKEND_CONTAINER_NAME }}" \
             --arg PROJECT_NAME "${{ secrets.PROJECT_NAME }}" \
             --arg ENVIRONMENT "$APP_ENVIRONMENT" \
             --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" \
@@ -168,7 +183,7 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster "${{ secrets.ECS_CLUSTER }}" \
-            --service "${{ secrets.ECS_SERVICE }}" \
+            --service "${{ secrets.BACKEND_ECS_SERVICE }}" \
             --force-new-deployment
 
   deploy-uat:
@@ -186,9 +201,9 @@ jobs:
         run: |
           MISSING=()
           [ -z "${{ secrets.ECS_CLUSTER }}" ] && MISSING+=("ECS_CLUSTER")
-          [ -z "${{ secrets.ECS_SERVICE }}" ] && MISSING+=("ECS_SERVICE")
-          [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] && MISSING+=("ECS_TASK_DEFINITION")
-          [ -z "${{ secrets.CONTAINER_NAME }}" ] && MISSING+=("CONTAINER_NAME")
+          [ -z "${{ secrets.BACKEND_ECS_SERVICE }}" ] && MISSING+=("BACKEND_ECS_SERVICE")
+          [ -z "${{ secrets.BACKEND_ECS_TASK_DEFINITION }}" ] && MISSING+=("BACKEND_ECS_TASK_DEFINITION")
+          [ -z "${{ secrets.BACKEND_CONTAINER_NAME }}" ] && MISSING+=("BACKEND_CONTAINER_NAME")
           [ -z "${{ secrets.PROJECT_NAME }}" ] && MISSING+=("PROJECT_NAME")
           [ -z "${{ secrets.POSTGRES_SERVER }}" ] && MISSING+=("POSTGRES_SERVER")
           [ -z "${{ secrets.POSTGRES_USER }}" ] && MISSING+=("POSTGRES_USER")
@@ -202,10 +217,25 @@ jobs:
             echo "::error title=Missing environment secrets::Missing in 'uat' environment: ${MISSING[*]}"
             exit 1
           fi
+      - name: Verify task definition exists
+        run: |
+          set +e
+          aws ecs describe-task-definition \
+            --task-definition "${{ secrets.BACKEND_ECS_TASK_DEFINITION }}" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text
+          STATUS=$?
+          set -e
+          if [ $STATUS -ne 0 ]; then
+            echo "::error title=Invalid BACKEND_ECS_TASK_DEFINITION::Cannot describe task definition '${{ secrets.BACKEND_ECS_TASK_DEFINITION }}'. Ensure it is a task definition family name or full ARN in the same AWS account/region, and that the IAM user has ecs:DescribeTaskDefinition."
+            echo "Recent task definitions in this region/account:"
+            aws ecs list-task-definitions --sort DESC --max-items 20 --output text || true
+            exit 1
+          fi
       - name: Fetch task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition "${{ secrets.ECS_TASK_DEFINITION }}" \
+            --task-definition "${{ secrets.BACKEND_ECS_TASK_DEFINITION }}" \
             --query taskDefinition > task.json
       - name: Update task image
         run: |
@@ -214,7 +244,7 @@ jobs:
           APP_ENVIRONMENT=staging
           jq \
             --arg IMG "$IMAGE_URI:backend-$VERSION" \
-            --arg NAME "${{ secrets.CONTAINER_NAME }}" \
+            --arg NAME "${{ secrets.BACKEND_CONTAINER_NAME }}" \
             --arg PROJECT_NAME "${{ secrets.PROJECT_NAME }}" \
             --arg ENVIRONMENT "$APP_ENVIRONMENT" \
             --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" \
@@ -267,7 +297,7 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster "${{ secrets.ECS_CLUSTER }}" \
-            --service "${{ secrets.ECS_SERVICE }}" \
+            --service "${{ secrets.BACKEND_ECS_SERVICE }}" \
             --force-new-deployment
 
   deploy-production:
@@ -285,9 +315,9 @@ jobs:
         run: |
           MISSING=()
           [ -z "${{ secrets.ECS_CLUSTER }}" ] && MISSING+=("ECS_CLUSTER")
-          [ -z "${{ secrets.ECS_SERVICE }}" ] && MISSING+=("ECS_SERVICE")
-          [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] && MISSING+=("ECS_TASK_DEFINITION")
-          [ -z "${{ secrets.CONTAINER_NAME }}" ] && MISSING+=("CONTAINER_NAME")
+          [ -z "${{ secrets.BACKEND_ECS_SERVICE }}" ] && MISSING+=("BACKEND_ECS_SERVICE")
+          [ -z "${{ secrets.BACKEND_ECS_TASK_DEFINITION }}" ] && MISSING+=("BACKEND_ECS_TASK_DEFINITION")
+          [ -z "${{ secrets.BACKEND_CONTAINER_NAME }}" ] && MISSING+=("BACKEND_CONTAINER_NAME")
           [ -z "${{ secrets.PROJECT_NAME }}" ] && MISSING+=("PROJECT_NAME")
           [ -z "${{ secrets.POSTGRES_SERVER }}" ] && MISSING+=("POSTGRES_SERVER")
           [ -z "${{ secrets.POSTGRES_USER }}" ] && MISSING+=("POSTGRES_USER")
@@ -301,10 +331,25 @@ jobs:
             echo "::error title=Missing environment secrets::Missing in 'production' environment: ${MISSING[*]}"
             exit 1
           fi
+      - name: Verify task definition exists
+        run: |
+          set +e
+          aws ecs describe-task-definition \
+            --task-definition "${{ secrets.BACKEND_ECS_TASK_DEFINITION }}" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text
+          STATUS=$?
+          set -e
+          if [ $STATUS -ne 0 ]; then
+            echo "::error title=Invalid BACKEND_ECS_TASK_DEFINITION::Cannot describe task definition '${{ secrets.BACKEND_ECS_TASK_DEFINITION }}'. Ensure it is a task definition family name or full ARN in the same AWS account/region, and that the IAM user has ecs:DescribeTaskDefinition."
+            echo "Recent task definitions in this region/account:"
+            aws ecs list-task-definitions --sort DESC --max-items 20 --output text || true
+            exit 1
+          fi
       - name: Fetch task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition "${{ secrets.ECS_TASK_DEFINITION }}" \
+            --task-definition "${{ secrets.BACKEND_ECS_TASK_DEFINITION }}" \
             --query taskDefinition > task.json
       - name: Update task image
         run: |
@@ -313,7 +358,7 @@ jobs:
           APP_ENVIRONMENT=production
           jq \
             --arg IMG "$IMAGE_URI:backend-$VERSION" \
-            --arg NAME "${{ secrets.CONTAINER_NAME }}" \
+            --arg NAME "${{ secrets.BACKEND_CONTAINER_NAME }}" \
             --arg PROJECT_NAME "${{ secrets.PROJECT_NAME }}" \
             --arg ENVIRONMENT "$APP_ENVIRONMENT" \
             --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" \
@@ -366,5 +411,5 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster "${{ secrets.ECS_CLUSTER }}" \
-            --service "${{ secrets.ECS_SERVICE }}" \
+            --service "${{ secrets.BACKEND_ECS_SERVICE }}" \
             --force-new-deployment
