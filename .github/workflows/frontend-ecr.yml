@@ -1,107 +1,19 @@
-name: Frontend - Build, Scan, Push & Deploy (Single ECR Repo)
+name: Frontend CI → ECR → ECS (Integration → UAT → Prod)
 
 on:
   push:
     branches:
       - main
     paths:
-      - "frontend/**"
-      - ".github/workflows/frontend-ecr.yml"
+      - 'frontend/**'
+      - '.github/workflows/frontend-ecr.yml'
 
 jobs:
-  deploy:
+  code-scan:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Set Environment
-        run: |
-          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
-            echo "ENV=prod" >> $GITHUB_ENV
-          elif [[ "${GITHUB_REF}" == "refs/heads/uat" ]]; then
-            echo "ENV=uat" >> $GITHUB_ENV
-          elif [[ "${GITHUB_REF}" == "refs/heads/integration" ]]; then
-            echo "ENV=int" >> $GITHUB_ENV
-          else
-            echo "ENV=dev" >> $GITHUB_ENV
-          fi
-
-      - name: Load Env Config
-        run: |
-          if [[ "$ENV" == "prod" ]]; then
-            CL='${{ secrets.ECS_CLUSTER_PROD }}'
-            SRV='${{ secrets.ECS_SERVICE_FRONTEND_PROD }}'
-            TD1='${{ secrets.ECS_TASK_DEF_FRONTEND_PROD }}'
-            TD2='${{ secrets.ECS_TASK_DEFINITION_FRONTEND_PROD }}'
-            TD3='${{ secrets.ECS_TASK_DEFINITION }}'
-            echo "ECS_CLUSTER=${CL}" >> $GITHUB_ENV
-            echo "ECS_SERVICE=${SRV}" >> $GITHUB_ENV
-            [[ -n "$TD1" ]] && echo "TASK_DEF=$TD1" >> $GITHUB_ENV || \
-            [[ -n "$TD2" ]] && echo "TASK_DEF=$TD2" >> $GITHUB_ENV || \
-            echo "TASK_DEF=$TD3" >> $GITHUB_ENV
-          elif [[ "$ENV" == "uat" ]]; then
-            CL='${{ secrets.ECS_CLUSTER_UAT }}'
-            SRV='${{ secrets.ECS_SERVICE_FRONTEND_UAT }}'
-            TD1='${{ secrets.ECS_TASK_DEF_FRONTEND_UAT }}'
-            TD2='${{ secrets.ECS_TASK_DEFINITION_FRONTEND_UAT }}'
-            TD3='${{ secrets.ECS_TASK_DEFINITION }}'
-            echo "ECS_CLUSTER=${CL}" >> $GITHUB_ENV
-            echo "ECS_SERVICE=${SRV}" >> $GITHUB_ENV
-            [[ -n "$TD1" ]] && echo "TASK_DEF=$TD1" >> $GITHUB_ENV || \
-            [[ -n "$TD2" ]] && echo "TASK_DEF=$TD2" >> $GITHUB_ENV || \
-            echo "TASK_DEF=$TD3" >> $GITHUB_ENV
-          elif [[ "$ENV" == "int" ]]; then
-            CL='${{ secrets.ECS_CLUSTER_INT }}'
-            SRV='${{ secrets.ECS_SERVICE_FRONTEND_INT }}'
-            TD1='${{ secrets.ECS_TASK_DEF_FRONTEND_INT }}'
-            TD2='${{ secrets.ECS_TASK_DEFINITION_FRONTEND_INT }}'
-            TD3='${{ secrets.ECS_TASK_DEFINITION }}'
-            echo "ECS_CLUSTER=${CL}" >> $GITHUB_ENV
-            echo "ECS_SERVICE=${SRV}" >> $GITHUB_ENV
-            [[ -n "$TD1" ]] && echo "TASK_DEF=$TD1" >> $GITHUB_ENV || \
-            [[ -n "$TD2" ]] && echo "TASK_DEF=$TD2" >> $GITHUB_ENV || \
-            echo "TASK_DEF=$TD3" >> $GITHUB_ENV
-          fi
-
-          echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
-          echo "AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}" >> $GITHUB_ENV
-          echo "ECR_REPO=${{ secrets.ECR_REPO }}" >> $GITHUB_ENV
-
-      - name: Validate required env
-        run: |
-          missing=0
-          for v in AWS_REGION AWS_ACCOUNT_ID ECR_REPO ECS_CLUSTER ECS_SERVICE TASK_DEF; do
-            if [ -z "${!v}" ]; then
-              echo "::error title=Missing variable::$v is empty. Check your repository Secrets for the correct value."
-              missing=1
-            fi
-          done
-          [ "$missing" -eq 0 ] || exit 1
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to ECR
-        run: |
-          aws ecr get-login-password \
-          | docker login \
-          --username AWS \
-          --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
-
-      - name: Set Version
-        run: |
-          VERSION=${GITHUB_SHA::7}
-          echo "VERSION=$VERSION" >> $GITHUB_ENV
-
-      - name: Build Frontend
-        run: docker build -f frontend/Dockerfile -t frontend:$VERSION .
-
       - name: Install Trivy
         run: |
           sudo apt-get update
@@ -110,36 +22,85 @@ jobs:
           echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
           sudo apt-get update
           sudo apt-get install -y trivy
-
-      - name: Scan Frontend
-        run: trivy image --scanners vuln --ignore-unfixed --exit-code 1 --severity CRITICAL frontend:$VERSION
-
-      - name: Tag Image
+      - name: Trivy FS scan
+        env:
+          TRIVY_DISABLE_VEX_NOTICE: "true"
         run: |
-          IMAGE_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO
+          trivy fs --scanners vuln,secret,config --ignore-unfixed --severity CRITICAL --exit-code 1 --skip-dirs .git,.venv,backend/.venv,frontend/node_modules .
 
+  build-scan-push:
+    runs-on: ubuntu-latest
+    needs: code-scan
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      image_uri: ${{ steps.meta.outputs.image_uri }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+      - name: Set version and image uri
+        id: meta
+        run: |
+          VERSION=${GITHUB_SHA::7}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPO }}
+          echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+      - name: Build image
+        run: docker build -f frontend/Dockerfile -t frontend:${{ steps.meta.outputs.version }} .
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+      - name: Trivy Image scan
+        run: trivy image --scanners vuln --ignore-unfixed --severity CRITICAL --exit-code 1 frontend:${{ steps.meta.outputs.version }}
+      - name: Tag and push
+        run: |
+          IMAGE_URI=${{ steps.meta.outputs.image_uri }}
+          VERSION=${{ steps.meta.outputs.version }}
           docker tag frontend:$VERSION $IMAGE_URI:frontend-$VERSION
-
-          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
-
-      - name: Push Image
-        run: |
           docker push $IMAGE_URI:frontend-$VERSION
 
-      - name: Install jq
-        run: sudo apt-get install -y jq
-
-      - name: Fetch Task Definition
+  deploy-integration:
+    runs-on: ubuntu-latest
+    needs: build-scan-push
+    environment: integration
+    steps:
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+      - name: Validate environment secrets
+        run: |
+          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ]; then
+            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME must be defined for 'integration' environment."
+            exit 1
+          fi
+      - name: Fetch task definition
         run: |
           aws ecs describe-task-definition \
-          --task-definition $TASK_DEF \
-          --query taskDefinition > task.json
-
-      - name: Update Task Definition
+            --task-definition "${{ secrets.ECS_TASK_DEFINITION }}" \
+            --query taskDefinition > task.json
+      - name: Update task image
         run: |
-          jq --arg FRONT "$IMAGE_URI:frontend-$VERSION" '
+          IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
+          VERSION=${{ needs.build-scan-push.outputs.version }}
+          jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.CONTAINER_NAME }}" '
             .containerDefinitions |= map(
-              if .name == "frontend" then .image = $FRONT else . end
+              if .name == $NAME then .image = $IMG else . end
             )
             | del(
                 .taskDefinitionArn,
@@ -151,16 +112,109 @@ jobs:
                 .registeredBy
               )
           ' task.json > new-task.json
-
-      - name: Register Task
-        run: |
-          aws ecs register-task-definition \
-          --cli-input-json file://new-task.json
-
-      - name: Deploy to ECS
-        if: env.ENV != 'dev'
+      - name: Register task
+        run: aws ecs register-task-definition --cli-input-json file://new-task.json
+      - name: Update service
         run: |
           aws ecs update-service \
-          --cluster $ECS_CLUSTER \
-          --service $ECS_SERVICE \
-          --force-new-deployment
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --service "${{ secrets.ECS_SERVICE }}" \
+            --force-new-deployment
+
+  deploy-uat:
+    runs-on: ubuntu-latest
+    needs: deploy-integration
+    environment: uat
+    steps:
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+      - name: Validate environment secrets
+        run: |
+          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ]; then
+            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME must be defined for 'uat' environment."
+            exit 1
+          fi
+      - name: Fetch task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "${{ secrets.ECS_TASK_DEFINITION }}" \
+            --query taskDefinition > task.json
+      - name: Update task image
+        run: |
+          IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
+          VERSION=${{ needs.build-scan-push.outputs.version }}
+          jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.CONTAINER_NAME }}" '
+            .containerDefinitions |= map(
+              if .name == $NAME then .image = $IMG else . end
+            )
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy
+              )
+          ' task.json > new-task.json
+      - name: Register task
+        run: aws ecs register-task-definition --cli-input-json file://new-task.json
+      - name: Update service
+        run: |
+          aws ecs update-service \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --service "${{ secrets.ECS_SERVICE }}" \
+            --force-new-deployment
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    needs: deploy-uat
+    environment: production
+    steps:
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+      - name: Validate environment secrets
+        run: |
+          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ]; then
+            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME must be defined for 'production' environment."
+            exit 1
+          fi
+      - name: Fetch task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition "${{ secrets.ECS_TASK_DEFINITION }}" \
+            --query taskDefinition > task.json
+      - name: Update task image
+        run: |
+          IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
+          VERSION=${{ needs.build-scan-push.outputs.version }}
+          jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.CONTAINER_NAME }}" '
+            .containerDefinitions |= map(
+              if .name == $NAME then .image = $IMG else . end
+            )
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy
+              )
+          ' task.json > new-task.json
+      - name: Register task
+        run: aws ecs register-task-definition --cli-input-json file://new-task.json
+      - name: Update service
+        run: |
+          aws ecs update-service \
+            --cluster "${{ secrets.ECS_CLUSTER }}" \
+            --service "${{ secrets.ECS_SERVICE }}" \
+            --force-new-deployment
