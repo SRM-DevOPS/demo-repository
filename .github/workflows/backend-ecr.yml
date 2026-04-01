@@ -85,8 +85,8 @@ jobs:
           aws-region:            ${{ secrets.AWS_REGION }}
       - name: Validate environment secrets
         run: |
-          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ]; then
-            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME must be defined for 'integration' environment."
+          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ] || [ -z "${{ secrets.PROJECT_NAME }}" ] || [ -z "${{ secrets.POSTGRES_SERVER }}" ] || [ -z "${{ secrets.POSTGRES_USER }}" ] || [ -z "${{ secrets.POSTGRES_PASSWORD }}" ] || [ -z "${{ secrets.POSTGRES_DB }}" ] || [ -z "${{ secrets.SECRET_KEY }}" ] || [ -z "${{ secrets.FIRST_SUPERUSER }}" ] || [ -z "${{ secrets.FIRST_SUPERUSER_PASSWORD }}" ]; then
+            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME and app settings (PROJECT_NAME/POSTGRES_*/SECRET_KEY/FIRST_SUPERUSER*) must be defined for 'integration' environment."
             exit 1
           fi
       - name: Fetch task definition
@@ -98,9 +98,45 @@ jobs:
         run: |
           IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
           VERSION=${{ needs.build-scan-push.outputs.version }}
-          jq --arg IMG "$IMAGE_URI:backend-$VERSION" --arg NAME "${{ secrets.CONTAINER_NAME }}" '
+          APP_ENVIRONMENT=staging
+          jq \
+            --arg IMG "$IMAGE_URI:backend-$VERSION" \
+            --arg NAME "${{ secrets.CONTAINER_NAME }}" \
+            --arg PROJECT_NAME "${{ secrets.PROJECT_NAME }}" \
+            --arg ENVIRONMENT "$APP_ENVIRONMENT" \
+            --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" \
+            --arg FRONTEND_HOST "${{ secrets.FRONTEND_HOST }}" \
+            --arg BACKEND_CORS_ORIGINS "${{ secrets.BACKEND_CORS_ORIGINS }}" \
+            --arg AUTH_ENABLED "${{ secrets.AUTH_ENABLED }}" \
+            --arg POSTGRES_SERVER "${{ secrets.POSTGRES_SERVER }}" \
+            --arg POSTGRES_PORT "${{ secrets.POSTGRES_PORT }}" \
+            --arg POSTGRES_USER "${{ secrets.POSTGRES_USER }}" \
+            --arg POSTGRES_PASSWORD "${{ secrets.POSTGRES_PASSWORD }}" \
+            --arg POSTGRES_DB "${{ secrets.POSTGRES_DB }}" \
+            --arg FIRST_SUPERUSER "${{ secrets.FIRST_SUPERUSER }}" \
+            --arg FIRST_SUPERUSER_PASSWORD "${{ secrets.FIRST_SUPERUSER_PASSWORD }}" \
+            '
+            def upsert_env($k; $v):
+              .environment = ((.environment // []) | map(select(.name != $k)) + [{"name": $k, "value": $v}]);
+
             .containerDefinitions |= map(
-              if .name == $NAME then .image = $IMG else . end
+              if .name == $NAME then
+                (.image = $IMG)
+                | upsert_env("PROJECT_NAME"; $PROJECT_NAME)
+                | upsert_env("ENVIRONMENT"; $ENVIRONMENT)
+                | upsert_env("SECRET_KEY"; $SECRET_KEY)
+                | (if ($FRONTEND_HOST | length) > 0 then upsert_env("FRONTEND_HOST"; $FRONTEND_HOST) else . end)
+                | (if ($BACKEND_CORS_ORIGINS | length) > 0 then upsert_env("BACKEND_CORS_ORIGINS"; $BACKEND_CORS_ORIGINS) else . end)
+                | (if ($AUTH_ENABLED | length) > 0 then upsert_env("AUTH_ENABLED"; $AUTH_ENABLED) else . end)
+                | upsert_env("POSTGRES_SERVER"; $POSTGRES_SERVER)
+                | (if ($POSTGRES_PORT | length) > 0 then upsert_env("POSTGRES_PORT"; $POSTGRES_PORT) else . end)
+                | upsert_env("POSTGRES_USER"; $POSTGRES_USER)
+                | upsert_env("POSTGRES_PASSWORD"; $POSTGRES_PASSWORD)
+                | upsert_env("POSTGRES_DB"; $POSTGRES_DB)
+                | upsert_env("FIRST_SUPERUSER"; $FIRST_SUPERUSER)
+                | upsert_env("FIRST_SUPERUSER_PASSWORD"; $FIRST_SUPERUSER_PASSWORD)
+              else .
+              end
             )
             | del(
                 .taskDefinitionArn,
@@ -134,8 +170,8 @@ jobs:
           aws-region:            ${{ secrets.AWS_REGION }}
       - name: Validate environment secrets
         run: |
-          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ]; then
-            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME must be defined for 'uat' environment."
+          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ] || [ -z "${{ secrets.PROJECT_NAME }}" ] || [ -z "${{ secrets.POSTGRES_SERVER }}" ] || [ -z "${{ secrets.POSTGRES_USER }}" ] || [ -z "${{ secrets.POSTGRES_PASSWORD }}" ] || [ -z "${{ secrets.POSTGRES_DB }}" ] || [ -z "${{ secrets.SECRET_KEY }}" ] || [ -z "${{ secrets.FIRST_SUPERUSER }}" ] || [ -z "${{ secrets.FIRST_SUPERUSER_PASSWORD }}" ]; then
+            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME and app settings (PROJECT_NAME/POSTGRES_*/SECRET_KEY/FIRST_SUPERUSER*) must be defined for 'uat' environment."
             exit 1
           fi
       - name: Fetch task definition
@@ -147,9 +183,45 @@ jobs:
         run: |
           IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
           VERSION=${{ needs.build-scan-push.outputs.version }}
-          jq --arg IMG "$IMAGE_URI:backend-$VERSION" --arg NAME "${{ secrets.CONTAINER_NAME }}" '
+          APP_ENVIRONMENT=staging
+          jq \
+            --arg IMG "$IMAGE_URI:backend-$VERSION" \
+            --arg NAME "${{ secrets.CONTAINER_NAME }}" \
+            --arg PROJECT_NAME "${{ secrets.PROJECT_NAME }}" \
+            --arg ENVIRONMENT "$APP_ENVIRONMENT" \
+            --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" \
+            --arg FRONTEND_HOST "${{ secrets.FRONTEND_HOST }}" \
+            --arg BACKEND_CORS_ORIGINS "${{ secrets.BACKEND_CORS_ORIGINS }}" \
+            --arg AUTH_ENABLED "${{ secrets.AUTH_ENABLED }}" \
+            --arg POSTGRES_SERVER "${{ secrets.POSTGRES_SERVER }}" \
+            --arg POSTGRES_PORT "${{ secrets.POSTGRES_PORT }}" \
+            --arg POSTGRES_USER "${{ secrets.POSTGRES_USER }}" \
+            --arg POSTGRES_PASSWORD "${{ secrets.POSTGRES_PASSWORD }}" \
+            --arg POSTGRES_DB "${{ secrets.POSTGRES_DB }}" \
+            --arg FIRST_SUPERUSER "${{ secrets.FIRST_SUPERUSER }}" \
+            --arg FIRST_SUPERUSER_PASSWORD "${{ secrets.FIRST_SUPERUSER_PASSWORD }}" \
+            '
+            def upsert_env($k; $v):
+              .environment = ((.environment // []) | map(select(.name != $k)) + [{"name": $k, "value": $v}]);
+
             .containerDefinitions |= map(
-              if .name == $NAME then .image = $IMG else . end
+              if .name == $NAME then
+                (.image = $IMG)
+                | upsert_env("PROJECT_NAME"; $PROJECT_NAME)
+                | upsert_env("ENVIRONMENT"; $ENVIRONMENT)
+                | upsert_env("SECRET_KEY"; $SECRET_KEY)
+                | (if ($FRONTEND_HOST | length) > 0 then upsert_env("FRONTEND_HOST"; $FRONTEND_HOST) else . end)
+                | (if ($BACKEND_CORS_ORIGINS | length) > 0 then upsert_env("BACKEND_CORS_ORIGINS"; $BACKEND_CORS_ORIGINS) else . end)
+                | (if ($AUTH_ENABLED | length) > 0 then upsert_env("AUTH_ENABLED"; $AUTH_ENABLED) else . end)
+                | upsert_env("POSTGRES_SERVER"; $POSTGRES_SERVER)
+                | (if ($POSTGRES_PORT | length) > 0 then upsert_env("POSTGRES_PORT"; $POSTGRES_PORT) else . end)
+                | upsert_env("POSTGRES_USER"; $POSTGRES_USER)
+                | upsert_env("POSTGRES_PASSWORD"; $POSTGRES_PASSWORD)
+                | upsert_env("POSTGRES_DB"; $POSTGRES_DB)
+                | upsert_env("FIRST_SUPERUSER"; $FIRST_SUPERUSER)
+                | upsert_env("FIRST_SUPERUSER_PASSWORD"; $FIRST_SUPERUSER_PASSWORD)
+              else .
+              end
             )
             | del(
                 .taskDefinitionArn,
@@ -183,8 +255,8 @@ jobs:
           aws-region:            ${{ secrets.AWS_REGION }}
       - name: Validate environment secrets
         run: |
-          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ]; then
-            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME must be defined for 'production' environment."
+          if [ -z "${{ secrets.ECS_CLUSTER }}" ] || [ -z "${{ secrets.ECS_SERVICE }}" ] || [ -z "${{ secrets.ECS_TASK_DEFINITION }}" ] || [ -z "${{ secrets.CONTAINER_NAME }}" ] || [ -z "${{ secrets.PROJECT_NAME }}" ] || [ -z "${{ secrets.POSTGRES_SERVER }}" ] || [ -z "${{ secrets.POSTGRES_USER }}" ] || [ -z "${{ secrets.POSTGRES_PASSWORD }}" ] || [ -z "${{ secrets.POSTGRES_DB }}" ] || [ -z "${{ secrets.SECRET_KEY }}" ] || [ -z "${{ secrets.FIRST_SUPERUSER }}" ] || [ -z "${{ secrets.FIRST_SUPERUSER_PASSWORD }}" ]; then
+            echo "::error title=Missing environment secrets::ECS_CLUSTER/ECS_SERVICE/ECS_TASK_DEFINITION/CONTAINER_NAME and app settings (PROJECT_NAME/POSTGRES_*/SECRET_KEY/FIRST_SUPERUSER*) must be defined for 'production' environment."
             exit 1
           fi
       - name: Fetch task definition
@@ -196,9 +268,45 @@ jobs:
         run: |
           IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
           VERSION=${{ needs.build-scan-push.outputs.version }}
-          jq --arg IMG "$IMAGE_URI:backend-$VERSION" --arg NAME "${{ secrets.CONTAINER_NAME }}" '
+          APP_ENVIRONMENT=production
+          jq \
+            --arg IMG "$IMAGE_URI:backend-$VERSION" \
+            --arg NAME "${{ secrets.CONTAINER_NAME }}" \
+            --arg PROJECT_NAME "${{ secrets.PROJECT_NAME }}" \
+            --arg ENVIRONMENT "$APP_ENVIRONMENT" \
+            --arg SECRET_KEY "${{ secrets.SECRET_KEY }}" \
+            --arg FRONTEND_HOST "${{ secrets.FRONTEND_HOST }}" \
+            --arg BACKEND_CORS_ORIGINS "${{ secrets.BACKEND_CORS_ORIGINS }}" \
+            --arg AUTH_ENABLED "${{ secrets.AUTH_ENABLED }}" \
+            --arg POSTGRES_SERVER "${{ secrets.POSTGRES_SERVER }}" \
+            --arg POSTGRES_PORT "${{ secrets.POSTGRES_PORT }}" \
+            --arg POSTGRES_USER "${{ secrets.POSTGRES_USER }}" \
+            --arg POSTGRES_PASSWORD "${{ secrets.POSTGRES_PASSWORD }}" \
+            --arg POSTGRES_DB "${{ secrets.POSTGRES_DB }}" \
+            --arg FIRST_SUPERUSER "${{ secrets.FIRST_SUPERUSER }}" \
+            --arg FIRST_SUPERUSER_PASSWORD "${{ secrets.FIRST_SUPERUSER_PASSWORD }}" \
+            '
+            def upsert_env($k; $v):
+              .environment = ((.environment // []) | map(select(.name != $k)) + [{"name": $k, "value": $v}]);
+
             .containerDefinitions |= map(
-              if .name == $NAME then .image = $IMG else . end
+              if .name == $NAME then
+                (.image = $IMG)
+                | upsert_env("PROJECT_NAME"; $PROJECT_NAME)
+                | upsert_env("ENVIRONMENT"; $ENVIRONMENT)
+                | upsert_env("SECRET_KEY"; $SECRET_KEY)
+                | (if ($FRONTEND_HOST | length) > 0 then upsert_env("FRONTEND_HOST"; $FRONTEND_HOST) else . end)
+                | (if ($BACKEND_CORS_ORIGINS | length) > 0 then upsert_env("BACKEND_CORS_ORIGINS"; $BACKEND_CORS_ORIGINS) else . end)
+                | (if ($AUTH_ENABLED | length) > 0 then upsert_env("AUTH_ENABLED"; $AUTH_ENABLED) else . end)
+                | upsert_env("POSTGRES_SERVER"; $POSTGRES_SERVER)
+                | (if ($POSTGRES_PORT | length) > 0 then upsert_env("POSTGRES_PORT"; $POSTGRES_PORT) else . end)
+                | upsert_env("POSTGRES_USER"; $POSTGRES_USER)
+                | upsert_env("POSTGRES_PASSWORD"; $POSTGRES_PASSWORD)
+                | upsert_env("POSTGRES_DB"; $POSTGRES_DB)
+                | upsert_env("FIRST_SUPERUSER"; $FIRST_SUPERUSER)
+                | upsert_env("FIRST_SUPERUSER_PASSWORD"; $FIRST_SUPERUSER_PASSWORD)
+              else .
+              end
             )
             | del(
                 .taskDefinitionArn,

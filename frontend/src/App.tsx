@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useEffect, useState } from "react"
 
 function App() {
   const [message, setMessage] = useState("Loading...")
@@ -11,9 +11,20 @@ function App() {
   }, [])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'sans-serif' }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        height: "100vh",
+        fontFamily: "sans-serif",
+      }}
+    >
       <h1>Simple Full-Stack App</h1>
-      <p>Backend Message: <strong>{message}</strong></p>
+      <p>
+        Backend Message: <strong>{message}</strong>
+      </p>
     </div>
   )
 }

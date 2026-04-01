@@ -6,7 +6,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jwt.exceptions import InvalidTokenError
 from pydantic import ValidationError
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from app.core import security
 from app.core.config import settings
@@ -14,7 +14,8 @@ from app.core.db import engine
 from app.models import TokenPayload, User
 
 reusable_oauth2 = OAuth2PasswordBearer(
-    tokenUrl=f"{settings.API_V1_STR}/login/access-token"
+    tokenUrl=f"{settings.API_V1_STR}/login/access-token",
+    auto_error=False,
 )
 
 
@@ -24,10 +25,25 @@ def get_db() -> Generator[Session, None, None]:
 
 
 SessionDep = Annotated[Session, Depends(get_db)]
-TokenDep = Annotated[str, Depends(reusable_oauth2)]
+TokenDep = Annotated[str | None, Depends(reusable_oauth2)]
 
 
 def get_current_user(session: SessionDep, token: TokenDep) -> User:
+    if not settings.AUTH_ENABLED:
+        superuser = session.exec(select(User).where(User.is_superuser)).first()
+        if superuser:
+            return superuser
+        any_user = session.exec(select(User)).first()
+        if any_user:
+            return any_user
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="AUTH_ENABLED is false but no users exist in the database",
+        )
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated"
+        )
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[security.ALGORITHM]

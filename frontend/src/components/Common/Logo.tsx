@@ -13,7 +13,8 @@ export function Logo({
   className,
   asLink = true,
 }: LogoProps) {
-  const srmLogoUrl = "https://www.srmtech.com/wp-content/uploads/2021/05/logo.png"
+  const srmLogoUrl =
+    "https://www.srmtech.com/wp-content/uploads/2021/05/logo.png"
 
   const content =
     variant === "responsive" ? (
