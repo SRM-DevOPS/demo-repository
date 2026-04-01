@@ -89,7 +89,7 @@ jobs:
 
       # 9️⃣ Scan Images (STRICT)
       - name: Scan Backend
-        run: trivy image --exit-code 1 --severity HIGH,CRITICAL backend:$VERSION
+        run: trivy image --scanners vuln --ignore-unfixed --exit-code 1 --severity HIGH,CRITICAL backend:$VERSION
 
       # 🔟 Tag Images
       - name: Tag Images

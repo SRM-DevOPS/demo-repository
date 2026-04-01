@@ -1,0 +1,38 @@
+name: Teams Notify
+
+on:
+  workflow_run:
+    workflows:
+      - Backend - Build, Scan, Push & Deploy (Single ECR Repo)
+      - Frontend - Build, Scan, Push & Deploy (Single ECR Repo)
+    types:
+      - completed
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Teams
+        env:
+          TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        run: |
+          if [ -z "$TEAMS_WEBHOOK_URL" ]; then
+            echo "Missing TEAMS_WEBHOOK_URL secret"
+            exit 1
+          fi
+
+          CONCLUSION="${{ github.event.workflow_run.conclusion }}"
+          REPO="${{ github.repository }}"
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
+          ACTOR="${{ github.event.workflow_run.actor.login }}"
+          RUN_URL="${{ github.event.workflow_run.html_url }}"
+
+          if [ "$CONCLUSION" = "success" ]; then
+            STATUS_LINE="✅ Deployment Successful 🚀"
+          else
+            STATUS_LINE="❌ Deployment Failed 🚨"
+          fi
+
+          curl -X POST "$TEAMS_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{\"text\":\"${STATUS_LINE}\nRepository: ${REPO}\nBranch: ${BRANCH}\nActor: ${ACTOR}\nRun: ${RUN_URL}\"}"
