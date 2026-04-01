@@ -102,6 +102,15 @@ jobs:
             .containerDefinitions |= map(
               if .name == $NAME then .image = $IMG else . end
             )
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy
+              )
           ' task.json > new-task.json
       - name: Register task
         run: aws ecs register-task-definition --cli-input-json file://new-task.json
@@ -142,6 +151,15 @@ jobs:
             .containerDefinitions |= map(
               if .name == $NAME then .image = $IMG else . end
             )
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy
+              )
           ' task.json > new-task.json
       - name: Register task
         run: aws ecs register-task-definition --cli-input-json file://new-task.json
@@ -182,6 +200,15 @@ jobs:
             .containerDefinitions |= map(
               if .name == $NAME then .image = $IMG else . end
             )
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy
+              )
           ' task.json > new-task.json
       - name: Register task
         run: aws ecs register-task-definition --cli-input-json file://new-task.json

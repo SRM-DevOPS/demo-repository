@@ -137,12 +137,20 @@ jobs:
 
       - name: Update Task Definition
         run: |
-          jq --arg FRONT "$IMAGE_URI:frontend-$VERSION" \
-             '
-             .containerDefinitions |= map(
-               if .name == "frontend" then .image = $FRONT else . end
-             )
-             ' task.json > new-task.json
+          jq --arg FRONT "$IMAGE_URI:frontend-$VERSION" '
+            .containerDefinitions |= map(
+              if .name == "frontend" then .image = $FRONT else . end
+            )
+            | del(
+                .taskDefinitionArn,
+                .revision,
+                .status,
+                .requiresAttributes,
+                .compatibilities,
+                .registeredAt,
+                .registeredBy
+              )
+          ' task.json > new-task.json
 
       - name: Register Task
         run: |
