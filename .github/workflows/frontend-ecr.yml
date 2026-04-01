@@ -1,250 +1,128 @@
-name: Frontend App Build & Push to ECR and Update GitOps
-
-permissions:
-  contents: write
+name: Frontend - Build, Scan, Push & Deploy (Single ECR Repo)
 
 on:
   push:
     branches:
       - main
     paths:
-      - 'frontend/**'
-      - '.github/workflows/frontend-ecr.yml'
-
-env:
-  AWS_REGION: ${{ secrets.AWS_REGION }}
-  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-
-  # ECR Repositories
-  ECR_PRIMARY_REPO: ${{ secrets.ECR_PRIMARY_REPO }}
-
-  # GitOps repositories
-  GITOPS_REPO: ${{ secrets.GITOPS_REPO }}
-
-  # Integration values
-  VALUES_FILE_APP_INT: envs/integration/frontend/default/app/values.yaml
-
-  # Demo values
-  VALUES_FILE_APP_DEMO: envs/demo/frontend/default/app/values.yaml
-
-  # Production values
-  VALUES_FILE_APP_PROD: envs/production/frontend/default/app/values.yaml
+      - "frontend/**"
+      - ".github/workflows/frontend-ecr.yml"
 
 jobs:
-  build-and-push:
-    runs-on: ubuntu-22.04
-    outputs:
-      version: ${{ steps.tag.outputs.VERSION }}
-      committer_name: ${{ steps.gitmeta.outputs.committer_name }}
-      committer_email: ${{ steps.gitmeta.outputs.committer_email }}
-      commit_msg: ${{ steps.gitmeta.outputs.commit_msg }}
+  deploy:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout GitOps repo (Integration) to read version
+      - name: Checkout Code
         uses: actions/checkout@v4
-        with:
-          repository: ${{ env.GITOPS_REPO }}
-          token: ${{ secrets.GH_PAT || github.token }}
-          path: gitops-int
-          fetch-depth: 0
 
-      - name: Derive next Docker version tag
-        id: tag
+      - name: Set Environment
         run: |
-          FILE="gitops-int/${{ env.VALUES_FILE_APP_INT }}"
-          # Handle case where file might not exist yet or yq fails
-          if [ -f "$FILE" ]; then
-            CURRENT=$(yq e '.image.tag' "$FILE" | sed 's/[^0-9]//g')
+          if [[ "${GITHUB_REF}" == "refs/heads/main" ]]; then
+            echo "ENV=prod" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF}" == "refs/heads/uat" ]]; then
+            echo "ENV=uat" >> $GITHUB_ENV
+          elif [[ "${GITHUB_REF}" == "refs/heads/integration" ]]; then
+            echo "ENV=int" >> $GITHUB_ENV
           else
-            CURRENT=0
+            echo "ENV=dev" >> $GITHUB_ENV
           fi
-          
-          if [[ "$CURRENT" =~ ^[0-9]+$ ]]; then
-            NEXT=$((CURRENT + 1))
-          else
-            NEXT=1
-          fi
-          echo "VERSION=$NEXT" >> "$GITHUB_ENV"
-          echo "VERSION=$NEXT" >> "$GITHUB_OUTPUT"
-          echo "::notice title=Next Version::V$NEXT"
 
-      - name: Checkout application repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-
-      - name: Extract committer and commit message
-        id: gitmeta
+      - name: Load Env Config
         run: |
-          COMMITTER_NAME=$(git log -1 --pretty=format:'%an')
-          COMMITTER_EMAIL=$(git log -1 --pretty=format:'%ae')
-          COMMIT_MSG=$(git log -1 --pretty=format:'%s')
+          if [[ "$ENV" == "prod" ]]; then
+            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_PROD }}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_FRONTEND_PROD }}" >> $GITHUB_ENV
+            echo "TASK_DEF=${{ secrets.ECS_TASK_DEF_FRONTEND_PROD }}" >> $GITHUB_ENV
+          elif [[ "$ENV" == "uat" ]]; then
+            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_UAT }}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_FRONTEND_UAT }}" >> $GITHUB_ENV
+            echo "TASK_DEF=${{ secrets.ECS_TASK_DEF_FRONTEND_UAT }}" >> $GITHUB_ENV
+          elif [[ "$ENV" == "int" ]]; then
+            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_INT }}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_FRONTEND_INT }}" >> $GITHUB_ENV
+            echo "TASK_DEF=${{ secrets.ECS_TASK_DEF_FRONTEND_INT }}" >> $GITHUB_ENV
+          fi
 
-          echo "committer_name=$COMMITTER_NAME" >> $GITHUB_OUTPUT
-          echo "committer_email=$COMMITTER_EMAIL" >> $GITHUB_OUTPUT
-          echo "commit_msg=$COMMIT_MSG" >> $GITHUB_OUTPUT
+          echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
+          echo "AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}" >> $GITHUB_ENV
+          echo "ECR_REPO=${{ secrets.ECR_REPO }}" >> $GITHUB_ENV
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
-
-      - name: Configure AWS credentials
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
+      - name: Login to ECR
         run: |
-          aws ecr get-login-password --region $AWS_REGION | \
-          docker login --username AWS \
-            --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+          aws ecr get-login-password \
+          | docker login \
+          --username AWS \
+          --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
 
-      - name: Build and push image
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
+      - name: Set Version
         run: |
-          VERSION="${{ steps.tag.outputs.VERSION }}"
-          IMAGE_BASE="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-          REPO="${ECR_PRIMARY_REPO}"
-          
-          IMAGE_TAG="${IMAGE_BASE}/${REPO}:frontend-v${VERSION}"
-          echo "Building image: $IMAGE_TAG"
-          docker build -f frontend/Dockerfile -t "$IMAGE_TAG" .
-          echo "Pushing image: $IMAGE_TAG"
-          docker push "$IMAGE_TAG"
+          VERSION=${GITHUB_SHA::7}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
 
-  update-gitops-integration:
-    needs: build-and-push
-    runs-on: ubuntu-22.04
-    environment: integration
-    steps:
-      - name: Checkout GitOps repo
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.GITOPS_REPO }}
-          token: ${{ secrets.GH_PAT || github.token }}
-          path: gitops
-          fetch-depth: 0
+      - name: Build Frontend
+        run: docker build -f frontend/Dockerfile -t frontend:$VERSION .
 
-      - name: Update image tag in Integration values.yaml
+      - name: Install Trivy
         run: |
-          cd gitops
-          VERSION="${{ needs.build-and-push.outputs.version }}"
-          yq e -i ".image.tag = \"frontend-v${VERSION}\"" "${{ env.VALUES_FILE_APP_INT }}"
+          sudo apt-get update
+          sudo apt-get install -y wget gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
 
-      - name: Commit & push changes to GitOps repo
+      - name: Scan Frontend
+        run: trivy image --exit-code 1 --severity HIGH,CRITICAL frontend:$VERSION
+
+      - name: Tag Image
         run: |
-          cd gitops
-          VERSION="${{ needs.build-and-push.outputs.version }}"
-          git config user.name  "${{ needs.build-and-push.outputs.committer_name }}"
-          git config user.email "${{ needs.build-and-push.outputs.committer_email }}"
+          IMAGE_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO
 
-          if git diff --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
+          docker tag frontend:$VERSION $IMAGE_URI:frontend-$VERSION
+          docker tag frontend:$VERSION $IMAGE_URI:frontend-$ENV-latest
 
-          git add "${{ env.VALUES_FILE_APP_INT }}"
-          git commit -m "${{ needs.build-and-push.outputs.commit_msg }} [ci: build version frontend-v${VERSION}]"
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
 
-          git pull --rebase origin main
-          git push origin HEAD:main
-
-  update-gitops-demo:
-    needs: [build-and-push, update-gitops-integration]
-    runs-on: ubuntu-22.04
-    environment: demo
-    steps:
-      - name: Checkout GitOps repo
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.GITOPS_REPO }}
-          token: ${{ secrets.GH_PAT || github.token }}
-          path: gitops
-          fetch-depth: 0
-
-      - name: Update image tag in Demo values.yaml
+      - name: Push Image
         run: |
-          cd gitops
-          VERSION="${{ needs.build-and-push.outputs.version }}"
-          yq e -i ".image.tag = \"frontend-v${VERSION}\"" "${{ env.VALUES_FILE_APP_DEMO }}"
+          docker push $IMAGE_URI:frontend-$VERSION
+          docker push $IMAGE_URI:frontend-$ENV-latest
 
-      - name: Commit & push changes to GitOps repo
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Fetch Task Definition
         run: |
-          cd gitops
-          VERSION="${{ needs.build-and-push.outputs.version }}"
-          git config user.name  "${{ needs.build-and-push.outputs.committer_name }}"
-          git config user.email "${{ needs.build-and-push.outputs.committer_email }}"
+          aws ecs describe-task-definition \
+          --task-definition $TASK_DEF \
+          --query taskDefinition > task.json
 
-          if git diff --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-
-          git add "${{ env.VALUES_FILE_APP_DEMO }}"
-          git commit -m "${{ needs.build-and-push.outputs.commit_msg }} [ci: build version frontend-v${VERSION}]"
-
-          git pull --rebase origin main
-          git push origin HEAD:main
-
-  update-gitops-production:
-    needs: [build-and-push, update-gitops-demo]
-    runs-on: ubuntu-22.04
-    environment: production
-    steps:
-      - name: Checkout GitOps repo
-        uses: actions/checkout@v4
-        with:
-          repository: ${{ env.GITOPS_REPO }}
-          token: ${{ secrets.GH_PAT || github.token }}
-          path: gitops
-          fetch-depth: 0
-
-      - name: Update image tag in Production values.yaml
+      - name: Update Task Definition
         run: |
-          cd gitops
-          VERSION="${{ needs.build-and-push.outputs.version }}"
-          yq e -i ".image.tag = \"frontend-v${VERSION}\"" "${{ env.VALUES_FILE_APP_PROD }}"
+          jq --arg FRONT "$IMAGE_URI:frontend-$VERSION" \
+             '
+             .containerDefinitions |= map(
+               if .name == "frontend" then .image = $FRONT else . end
+             )
+             ' task.json > new-task.json
 
-      - name: Commit & push changes to GitOps repo
+      - name: Register Task
         run: |
-          cd gitops
-          VERSION="${{ needs.build-and-push.outputs.version }}"
-          git config user.name  "${{ needs.build-and-push.outputs.committer_name }}"
-          git config user.email "${{ needs.build-and-push.outputs.committer_email }}"
+          aws ecs register-task-definition \
+          --cli-input-json file://new-task.json
 
-          if git diff --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-
-          git add "${{ env.VALUES_FILE_APP_PROD }}"
-          git commit -m "${{ needs.build-and-push.outputs.commit_msg }} [ci: build version frontend-v${VERSION}]"
-
-          git pull --rebase origin main
-          git push origin HEAD:main
-
-  tag-release:
-    needs: [build-and-push, update-gitops-production]
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout application repo
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Create and push Git tag
+      - name: Deploy to ECS
+        if: env.ENV != 'dev'
         run: |
-          VERSION="${{ needs.build-and-push.outputs.version }}"
-          TAG="frontend-v${VERSION}"
-          git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
+          aws ecs update-service \
+          --cluster $ECS_CLUSTER \
+          --service $ECS_SERVICE \
+          --force-new-deployment

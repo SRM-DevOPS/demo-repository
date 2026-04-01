@@ -75,7 +75,7 @@ jobs:
 
       # 7️⃣ Build Images
       - name: Build Backend
-        run: docker build -t backend:$VERSION ./backend
+        run: docker build -f backend/Dockerfile -t backend:$VERSION .
 
       # 8️⃣ Install Trivy
       - name: Install Trivy
