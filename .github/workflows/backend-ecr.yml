@@ -70,9 +70,7 @@ jobs:
           IMAGE_URI=${{ steps.meta.outputs.image_uri }}
           VERSION=${{ steps.meta.outputs.version }}
           docker tag backend:$VERSION $IMAGE_URI:backend-$VERSION
-          docker tag backend:$VERSION $IMAGE_URI:backend-latest
           docker push $IMAGE_URI:backend-$VERSION
-          docker push $IMAGE_URI:backend-latest
 
   deploy-integration:
     runs-on: ubuntu-latest

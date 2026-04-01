@@ -119,14 +119,12 @@ jobs:
           IMAGE_URI=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$ECR_REPO
 
           docker tag frontend:$VERSION $IMAGE_URI:frontend-$VERSION
-          docker tag frontend:$VERSION $IMAGE_URI:frontend-$ENV-latest
 
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
 
       - name: Push Image
         run: |
           docker push $IMAGE_URI:frontend-$VERSION
-          docker push $IMAGE_URI:frontend-$ENV-latest
 
       - name: Install jq
         run: sudo apt-get install -y jq
