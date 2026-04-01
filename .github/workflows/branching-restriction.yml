@@ -1,0 +1,80 @@
+name: Branching Restriction
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, edited]
+    branches:
+      - main
+  create:
+    branches:
+      - '*'
+
+jobs:
+  validate-branch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Extract Branch Info
+        id: extract
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BRANCH_NAME="${{ github.head_ref }}"
+          else
+            BRANCH_NAME="${GITHUB_REF##*/}"
+          fi
+          echo "Branch name: $BRANCH_NAME"
+
+          if [[ "$BRANCH_NAME" == "main" || "$BRANCH_NAME" == "master" ]]; then
+            echo "✅ Skipping validation for default branch: $BRANCH_NAME"
+            exit 0
+          fi
+
+          # Extract Jira ticket prefix (e.g., SRMD-123)
+          PREFIX=$(echo "$BRANCH_NAME" | grep -oE '^SRMD-[0-9]+')
+          if [ -z "$PREFIX" ]; then
+            echo "::error::❌ Branch name must start with a prefix like SRMD-123"
+            exit 1
+          fi
+
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
+          echo "prefix=$PREFIX" >> $GITHUB_OUTPUT
+
+      - name: Check for Duplicate Branch Prefix
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PREFIX="${{ steps.extract.outputs.prefix }}"
+          CURRENT_BRANCH="${{ steps.extract.outputs.branch_name }}"
+
+          echo "Searching remote branches with prefix: $PREFIX (excluding current: $CURRENT_BRANCH)"
+
+          BRANCHES=$(git ls-remote --heads https://x-access-token:${TOKEN}@github.com/${{ github.repository }} | awk '{print $2}' | sed 's|refs/heads/||')
+          MATCHES=$(echo "$BRANCHES" | grep "^$PREFIX" | grep -v "^$CURRENT_BRANCH$" || true)
+
+          if [ -n "$MATCHES" ]; then
+            echo "::error::❌ Branch prefix '$PREFIX' already used in: $MATCHES"
+            echo "❗ Please remove duplicate branches. Work in a single branch per Jira ticket."
+            exit 1
+          else
+            echo "✅ No duplicate branches found for prefix $PREFIX"
+          fi
+
+      - name: Check Jira Ticket Status
+        run: |
+          TICKET="${{ steps.extract.outputs.prefix }}"
+          echo "🔍 Checking Jira ticket status for: $TICKET"
+
+          RESPONSE=$(curl -s -u "${{ secrets.JIRA_EMAIL }}:${{ secrets.JIRA_API_TOKEN }}" \
+            -H "Accept: application/json" \
+            "${{ secrets.JIRA_BASE_URL }}/rest/api/3/issue/${TICKET}")
+
+          STATUS=$(echo "$RESPONSE" | jq -r '.fields.status.name')
+
+          echo "Jira ticket status is: $STATUS"
+
+          if [[ "$STATUS" == "Done" ]]; then
+            echo "::error::❌ Ticket $TICKET is already in 'Done'. Do not continue work on a completed issue."
+            exit 1
+          fi
+
+          echo "✅ Ticket is active (status: $STATUS)"

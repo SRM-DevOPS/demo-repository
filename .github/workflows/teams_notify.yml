@@ -3,8 +3,8 @@ name: Teams Notify
 on:
   workflow_run:
     workflows:
-      - Backend - Build, Scan, Push & Deploy (Single ECR Repo)
-      - Frontend - Build, Scan, Push & Deploy (Single ECR Repo)
+      - Backend CI → ECR → ECS (Integration → UAT → Prod)
+      - Frontend CI → ECR → ECS (Integration → UAT → Prod)
     types:
       - completed
 

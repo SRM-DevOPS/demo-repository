@@ -1,0 +1,55 @@
+name: Check Dependabot Alerts on PR
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-dependabot-alerts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check Dependabot Alerts
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+          REPO: ${{ github.repository }}
+        run: |
+          echo "🔍 Fetching Dependabot alerts for $REPO"
+          
+          if [ -z "$GH_PAT" ]; then
+            echo "ℹ️ GH_PAT is not configured. Skipping Dependabot alerts check."
+            exit 0
+          fi
+
+          ALERTS=$(curl -s -H "Authorization: token $GH_PAT" \
+                         -H "Accept: application/vnd.github+json" \
+                         "https://api.github.com/repos/$REPO/dependabot/alerts?per_page=100")
+
+          if echo "$ALERTS" | jq -e '.message? // empty' > /dev/null; then
+            echo "❌ GitHub API error: $(echo "$ALERTS" | jq -r '.message')"
+            exit 1
+          fi
+
+          COUNT=$(echo "$ALERTS" | jq '[.[] | select(.state == "open")] | length')
+          CRITICAL=$(echo "$ALERTS" | jq '[.[] | select(.security_vulnerability.severity == "critical" and .state == "open")] | length')
+
+          echo ""
+          echo "⚠️ Total open Dependabot alerts: $COUNT"
+          echo "🚨 Critical alerts: $CRITICAL"
+          echo "🔗 View all alerts at: https://github.com/${REPO}/security/dependabot"
+          echo ""
+
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "🛑 Listing Critical Alerts:"
+            echo ""
+            echo "$ALERTS" | jq -r '.[] | select(.security_vulnerability.severity == "critical" and .state == "open") |
+              "🔸 \(.security_advisory.summary)\n   Detected in: \(.security_vulnerability.package.name) (\(.security_vulnerability.package.ecosystem))\n   File: \(.dependency.manifest_path)\n   Created at: \(.created_at)\n"'
+
+            echo "❌ Failing PR due to $CRITICAL critical Dependabot vulnerabilities"
+            exit 1
+          else
+            echo "✅ No critical Dependabot alerts found"
+          fi

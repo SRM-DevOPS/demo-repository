@@ -1,0 +1,44 @@
+name: PR Naming Checks
+
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  pr-title-description:
+    name: PR Naming and Branch Prefix Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Validate PR title, description, and branch prefix
+        run: |
+          TITLE="${{ github.event.pull_request.title }}"
+          BODY=$(echo "${{ github.event.pull_request.body }}" | sed 's/`/\\`/g' | tr -d '\r')
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+
+          echo "🔍 PR Title: $TITLE"
+          echo "🔍 PR Description: $BODY"
+          echo "🔍 Branch Name: $BRANCH_NAME"
+
+          # Extract Jira ticket from PR title (e.g., SRMD-123)
+          TITLE_PREFIX=$(echo "$TITLE" | grep -oP '^SRMD-\d+')
+
+          if [[ -z "$TITLE_PREFIX" ]]; then
+            echo "❌ PR title must start with SRMD-<number>. (e.g., SRMD-123: Fix login bug)"
+            exit 1
+          fi
+
+          # Validate non-empty description
+          if [[ -z "$BODY" || "$BODY" =~ ^[[:space:]]*$ ]]; then
+            echo "❌ PR description cannot be empty."
+            exit 1
+          fi
+
+          # Check if branch name contains the same prefix
+          if [[ "$BRANCH_NAME" != $TITLE_PREFIX* ]]; then
+            echo "❌ PR name must start with the same Jira ticket prefix as the Branch title ($BRANCH_NAME)."
+            echo "Branch: $BRANCH_NAME vs Title Prefix: $TITLE_PREFIX"
+            exit 1
+          fi
+
+          echo "✅ PR title, description, and branch prefix are valid."

@@ -27,11 +27,11 @@ jobs:
           echo "🔍 Checking PR Title: $TITLE"
 
           # Extract Jira ticket from branch name first
-          TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+')
+          TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]+-[0-9]+' || true)
 
           # If not found in branch, try PR title
           if [ -z "$TICKET" ]; then
-            TICKET=$(echo "$TITLE" | grep -oE '[A-Z]+-[0-9]+')
+            TICKET=$(echo "$TITLE" | grep -oE '[A-Z]+-[0-9]+' || true)
           fi
 
           if [ -z "$TICKET" ]; then
