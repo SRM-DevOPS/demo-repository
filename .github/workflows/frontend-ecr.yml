@@ -31,22 +31,54 @@ jobs:
       - name: Load Env Config
         run: |
           if [[ "$ENV" == "prod" ]]; then
-            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_PROD }}" >> $GITHUB_ENV
-            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_FRONTEND_PROD }}" >> $GITHUB_ENV
-            echo "TASK_DEF=${{ secrets.ECS_TASK_DEF_FRONTEND_PROD }}" >> $GITHUB_ENV
+            CL='${{ secrets.ECS_CLUSTER_PROD }}'
+            SRV='${{ secrets.ECS_SERVICE_FRONTEND_PROD }}'
+            TD1='${{ secrets.ECS_TASK_DEF_FRONTEND_PROD }}'
+            TD2='${{ secrets.ECS_TASK_DEFINITION_FRONTEND_PROD }}'
+            TD3='${{ secrets.ECS_TASK_DEFINITION }}'
+            echo "ECS_CLUSTER=${CL}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${SRV}" >> $GITHUB_ENV
+            [[ -n "$TD1" ]] && echo "TASK_DEF=$TD1" >> $GITHUB_ENV || \
+            [[ -n "$TD2" ]] && echo "TASK_DEF=$TD2" >> $GITHUB_ENV || \
+            echo "TASK_DEF=$TD3" >> $GITHUB_ENV
           elif [[ "$ENV" == "uat" ]]; then
-            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_UAT }}" >> $GITHUB_ENV
-            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_FRONTEND_UAT }}" >> $GITHUB_ENV
-            echo "TASK_DEF=${{ secrets.ECS_TASK_DEF_FRONTEND_UAT }}" >> $GITHUB_ENV
+            CL='${{ secrets.ECS_CLUSTER_UAT }}'
+            SRV='${{ secrets.ECS_SERVICE_FRONTEND_UAT }}'
+            TD1='${{ secrets.ECS_TASK_DEF_FRONTEND_UAT }}'
+            TD2='${{ secrets.ECS_TASK_DEFINITION_FRONTEND_UAT }}'
+            TD3='${{ secrets.ECS_TASK_DEFINITION }}'
+            echo "ECS_CLUSTER=${CL}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${SRV}" >> $GITHUB_ENV
+            [[ -n "$TD1" ]] && echo "TASK_DEF=$TD1" >> $GITHUB_ENV || \
+            [[ -n "$TD2" ]] && echo "TASK_DEF=$TD2" >> $GITHUB_ENV || \
+            echo "TASK_DEF=$TD3" >> $GITHUB_ENV
           elif [[ "$ENV" == "int" ]]; then
-            echo "ECS_CLUSTER=${{ secrets.ECS_CLUSTER_INT }}" >> $GITHUB_ENV
-            echo "ECS_SERVICE=${{ secrets.ECS_SERVICE_FRONTEND_INT }}" >> $GITHUB_ENV
-            echo "TASK_DEF=${{ secrets.ECS_TASK_DEF_FRONTEND_INT }}" >> $GITHUB_ENV
+            CL='${{ secrets.ECS_CLUSTER_INT }}'
+            SRV='${{ secrets.ECS_SERVICE_FRONTEND_INT }}'
+            TD1='${{ secrets.ECS_TASK_DEF_FRONTEND_INT }}'
+            TD2='${{ secrets.ECS_TASK_DEFINITION_FRONTEND_INT }}'
+            TD3='${{ secrets.ECS_TASK_DEFINITION }}'
+            echo "ECS_CLUSTER=${CL}" >> $GITHUB_ENV
+            echo "ECS_SERVICE=${SRV}" >> $GITHUB_ENV
+            [[ -n "$TD1" ]] && echo "TASK_DEF=$TD1" >> $GITHUB_ENV || \
+            [[ -n "$TD2" ]] && echo "TASK_DEF=$TD2" >> $GITHUB_ENV || \
+            echo "TASK_DEF=$TD3" >> $GITHUB_ENV
           fi
 
           echo "AWS_REGION=${{ secrets.AWS_REGION }}" >> $GITHUB_ENV
           echo "AWS_ACCOUNT_ID=${{ secrets.AWS_ACCOUNT_ID }}" >> $GITHUB_ENV
           echo "ECR_REPO=${{ secrets.ECR_REPO }}" >> $GITHUB_ENV
+
+      - name: Validate required env
+        run: |
+          missing=0
+          for v in AWS_REGION AWS_ACCOUNT_ID ECR_REPO ECS_CLUSTER ECS_SERVICE TASK_DEF; do
+            if [ -z "${!v}" ]; then
+              echo "::error title=Missing variable::$v is empty. Check your repository Secrets for the correct value."
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ] || exit 1
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
