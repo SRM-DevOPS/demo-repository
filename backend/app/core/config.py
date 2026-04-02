@@ -78,7 +78,6 @@ class Settings(BaseSettings):
             path=db,
         )
 
-
     SMTP_TLS: bool = True
     SMTP_SSL: bool = False
     SMTP_PORT: int = 587
