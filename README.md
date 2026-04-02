@@ -1,6 +1,6 @@
 # Full Stack FastAPI Template
 
-## Technology Stack and Features
+## Technology Stack and Feature
 
 
 - ⚡ [**FastAPI**](https://fastapi.tiangolo.com) for the Python backend API.
