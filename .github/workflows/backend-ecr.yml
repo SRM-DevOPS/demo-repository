@@ -1,4 +1,4 @@
-name: Backend CI → ECR → ECS (Integration → UAT → Prod)
+name: Backend CI → ECR → ECS (Integration → Staging → Prod)
 
 on:
   push:
