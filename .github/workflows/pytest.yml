@@ -17,25 +17,26 @@ jobs:
 
     services:
       db:
-        image: postgres:18
+        image: mysql:8.0
         env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: password
-          POSTGRES_DB: app
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: app
+          MYSQL_USER: user
+          MYSQL_PASSWORD: password
         ports:
-          - 5432:5432
+          - 3306:3306
         options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
 
     env:
       POSTGRES_SERVER: localhost
-      POSTGRES_USER: postgres
+      POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: app
-      POSTGRES_PORT: 5432
+      POSTGRES_PORT: 3306
       SECRET_KEY: "test-secret-key-at-least-32-chars-long"
       PROJECT_NAME: "FastAPI Project"
       FIRST_SUPERUSER: "admin@example.com"
