@@ -14,6 +14,9 @@ ENV UV_COMPILE_BYTECODE=1
 # Ref: https://docs.astral.sh/uv/guides/integration/docker/#caching
 ENV UV_LINK_MODE=copy
 
+# Database skip flags
+ENV SKIP_PRESTART_DB=false
+
 WORKDIR /app/
 
 # Place executables in the environment at the front of the path
