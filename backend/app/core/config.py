@@ -48,9 +48,9 @@ class Settings(BaseSettings):
         # Use getattr to avoid AttributeError during validation error reporting
         backend_cors_origins = getattr(self, "BACKEND_CORS_ORIGINS", [])
         frontend_host = getattr(self, "FRONTEND_HOST", "http://localhost:5173")
-        return [str(origin).rstrip("/") for origin in backend_cors_origins] + [
-            str(frontend_host)
-        ]
+        return [
+            str(origin).rstrip("/") for origin in backend_cors_origins
+        ] + [str(frontend_host)]
 
     PROJECT_NAME: str = "Full Stack FastAPI Project"
     SENTRY_DSN: HttpUrl | None = None
