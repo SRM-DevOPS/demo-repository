@@ -51,7 +51,7 @@ jobs:
         run: |
           VERSION=${GITHUB_SHA::7}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.ECR_REPO }}
+          IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.BACKEND_ECR_REPO }}
           echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
       - name: Build image
         run: docker build -f backend/Dockerfile -t backend:${{ steps.meta.outputs.version }} .
