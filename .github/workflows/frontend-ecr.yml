@@ -51,7 +51,19 @@ jobs:
         run: |
           VERSION=${GITHUB_SHA::7}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          IMAGE_URI=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ secrets.FRONTEND_ECR_REPO }}
+          
+          # Use shell variables for fallback instead of invalid GH expression syntax
+          REPO_NAME="${{ secrets.FRONTEND_ECR_REPO }}"
+          if [ -z "$REPO_NAME" ]; then
+            REPO_NAME="${{ secrets.ECR_REPO }}"
+          fi
+          
+          if [ -z "$REPO_NAME" ]; then
+            echo "::error::Neither FRONTEND_ECR_REPO nor ECR_REPO secrets are set."
+            exit 1
+          fi
+          
+          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
           echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
       - name: Build image
         run: docker build -f frontend/Dockerfile -t frontend:${{ steps.meta.outputs.version }} .
