@@ -7,6 +7,7 @@ from pydantic import (
     BeforeValidator,
     EmailStr,
     HttpUrl,
+    MySQLDsn,
     PostgresDsn,
     computed_field,
     model_validator,
@@ -59,9 +60,9 @@ class Settings(BaseSettings):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def SQLALCHEMY_DATABASE_URI(self) -> PostgresDsn:
-        return PostgresDsn.build(
-            scheme="postgresql+psycopg",
+    def SQLALCHEMY_DATABASE_URI(self) -> MySQLDsn:
+        return MySQLDsn.build(
+            scheme="mysql+pymysql",
             username=self.POSTGRES_USER,
             password=self.POSTGRES_PASSWORD,
             host=self.POSTGRES_SERVER,
