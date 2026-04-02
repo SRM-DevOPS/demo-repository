@@ -1,4 +1,5 @@
 import logging
+import os
 
 from sqlalchemy import Engine
 from sqlmodel import Session, select
@@ -30,6 +31,9 @@ def init(db_engine: Engine) -> None:
 
 
 def main() -> None:
+    if os.getenv("SKIP_PRESTART_DB") == "true":
+        logger.info("Skipping DB pre-start initialization")
+        return
     logger.info("Initializing service")
     init(engine)
     logger.info("Service finished initializing")
