@@ -133,7 +133,7 @@ jobs:
             --query taskDefinition > task.json
       - name: Update task image
         run: |
-          IMAGE_URI="IMAGE_URI="891377374196.dkr.ecr.ap-south-1.amazonaws.com/srm-backend"
+          IMAGE_URI="891377374196.dkr.ecr.ap-south-1.amazonaws.com/srm-backend"
           VERSION=${{ needs.build-scan-push.outputs.version }}
           APP_ENVIRONMENT=integration
           jq \

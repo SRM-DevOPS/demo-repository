@@ -73,7 +73,7 @@ jobs:
         run: trivy image --scanners vuln --ignore-unfixed --severity CRITICAL --exit-code 1 frontend:${{ steps.meta.outputs.version }}
       - name: Tag and push
         run: |
-          IMAGE_URI="IMAGE_URI="891377374196.dkr.ecr.ap-south-1.amazonaws.com/srm-frontend"
+          IMAGE_URI="891377374196.dkr.ecr.ap-south-1.amazonaws.com/srm-frontend"
           VERSION=${{ steps.meta.outputs.version }}
           docker tag frontend:$VERSION $IMAGE_URI:frontend-$VERSION
           docker push $IMAGE_URI:frontend-$VERSION
