@@ -79,7 +79,8 @@ jobs:
         run: trivy image --scanners vuln --ignore-unfixed --severity CRITICAL --exit-code 1 frontend:${{ steps.meta.outputs.version }}
       - name: Tag and push
         run: |
-          IMAGE_URI=${{ steps.meta.outputs.image_uri }}
+          REPO_NAME=${{ steps.meta.outputs.repo_name }}
+          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
           VERSION=${{ steps.meta.outputs.version }}
           docker tag frontend:$VERSION $IMAGE_URI:frontend-$VERSION
           docker push $IMAGE_URI:frontend-$VERSION
@@ -204,7 +205,8 @@ jobs:
             --query taskDefinition > task.json
       - name: Update task image
         run: |
-          IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
+          REPO_NAME=${{ needs.build-scan-push.outputs.repo_name }}
+          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
           VERSION=${{ needs.build-scan-push.outputs.version }}
           jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.FRONTEND_CONTAINER_NAME }}" '
             .containerDefinitions |= map(
@@ -278,7 +280,8 @@ jobs:
             --query taskDefinition > task.json
       - name: Update task image
         run: |
-          IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
+          REPO_NAME=${{ needs.build-scan-push.outputs.repo_name }}
+          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
           VERSION=${{ needs.build-scan-push.outputs.version }}
           jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.FRONTEND_CONTAINER_NAME }}" '
             .containerDefinitions |= map(
