@@ -7,6 +7,12 @@ on:
     paths:
       - 'frontend/**'
       - '.github/workflows/frontend-ecr.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/frontend-ecr.yml'
 
 jobs:
   code-scan:
