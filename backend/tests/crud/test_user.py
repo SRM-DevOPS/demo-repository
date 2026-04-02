@@ -74,6 +74,8 @@ def test_get_user(db: Session) -> None:
     user_2 = db.get(User, user.id)
     assert user_2
     assert user.email == user_2.email
+    # Use jsonable_encoder to ensure both are in a serializable format before comparison
+    # This avoids warnings about UUIDs being passed as strings in some environments
     assert jsonable_encoder(user) == jsonable_encoder(user_2)
 
 

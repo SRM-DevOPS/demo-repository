@@ -9,6 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 import sqlmodel.sql.sqltypes
 from sqlalchemy.dialects import postgresql
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -22,6 +23,11 @@ def upgrade():
     bind = op.get_bind()
     is_postgresql = bind.dialect.name == 'postgresql'
     is_mysql = bind.dialect.name == 'mysql'
+    insp = inspect(bind)
+
+    def column_exists(table_name, column_name):
+        columns = insp.get_columns(table_name)
+        return any(c['name'] == column_name for c in columns)
 
     # Ensure appropriate UUID handling based on database dialect
     if is_postgresql:
@@ -44,21 +50,24 @@ def upgrade():
         uuid_populate = None
 
     # Create a new UUID column with a default UUID value
-    op.add_column('user', sa.Column('new_id', uuid_type, nullable=True, default=uuid_default))
-    op.add_column('item', sa.Column('new_id', uuid_type, nullable=True, default=uuid_default))
-    op.add_column('item', sa.Column('new_owner_id', uuid_type, nullable=True))
+    if not column_exists('user', 'new_id'):
+        op.add_column('user', sa.Column('new_id', uuid_type, nullable=True, default=uuid_default))
+    if not column_exists('item', 'new_id'):
+        op.add_column('item', sa.Column('new_id', uuid_type, nullable=True, default=uuid_default))
+    if not column_exists('item', 'new_owner_id'):
+        op.add_column('item', sa.Column('new_owner_id', uuid_type, nullable=True))
 
     # Populate the new columns with UUIDs
     if uuid_populate:
-        op.execute(f'UPDATE {user_table} SET new_id = {uuid_populate}')
-        op.execute(f'UPDATE item SET new_id = {uuid_populate}')
+        op.execute(f'UPDATE {user_table} SET new_id = {uuid_populate} WHERE new_id IS NULL')
+        op.execute(f'UPDATE item SET new_id = {uuid_populate} WHERE new_id IS NULL')
     
     # Populate foreign key relation
-    op.execute(f'UPDATE item SET new_owner_id = (SELECT new_id FROM {user_table} WHERE {user_table}.id = item.owner_id)')
+    op.execute(f'UPDATE item SET new_owner_id = (SELECT new_id FROM {user_table} WHERE {user_table}.id = item.owner_id) WHERE new_owner_id IS NULL')
 
     # Set the new_id as not nullable
-    op.alter_column('user', 'new_id', nullable=False)
-    op.alter_column('item', 'new_id', nullable=False)
+    op.alter_column('user', 'new_id', nullable=False, type_=uuid_type)
+    op.alter_column('item', 'new_id', nullable=False, type_=uuid_type)
 
     # Drop old constraints and rename new columns
     # Note: constraint names might vary by DB, using generic handling
@@ -67,8 +76,10 @@ def upgrade():
     except Exception:
         pass
 
-    op.drop_column('item', 'owner_id')
-    op.alter_column('item', 'new_owner_id', new_column_name='owner_id')
+    if column_exists('item', 'owner_id'):
+        op.drop_column('item', 'owner_id')
+    if column_exists('item', 'new_owner_id'):
+        op.alter_column('item', 'new_owner_id', new_column_name='owner_id', type_=uuid_type)
 
     # Re-handle primary keys
     try:
@@ -76,16 +87,25 @@ def upgrade():
             op.drop_constraint('user_pkey', 'user', type_='primary')
             op.drop_constraint('item_pkey', 'item', type_='primary')
         elif is_mysql:
-            op.execute('ALTER TABLE `user` DROP PRIMARY KEY')
-            op.execute('ALTER TABLE item DROP PRIMARY KEY')
+            # Check if PK exists before dropping
+            pk_user = insp.get_pk_constraint('user')
+            if pk_user and pk_user.get('constrained_columns'):
+                op.execute('ALTER TABLE `user` DROP PRIMARY KEY')
+            pk_item = insp.get_pk_constraint('item')
+            if pk_item and pk_item.get('constrained_columns'):
+                op.execute('ALTER TABLE item DROP PRIMARY KEY')
     except Exception:
         pass
 
-    op.drop_column('user', 'id')
-    op.alter_column('user', 'new_id', new_column_name='id')
+    if column_exists('user', 'id'):
+        op.drop_column('user', 'id')
+    if column_exists('user', 'new_id'):
+        op.alter_column('user', 'new_id', new_column_name='id', type_=uuid_type)
 
-    op.drop_column('item', 'id')
-    op.alter_column('item', 'new_id', new_column_name='id')
+    if column_exists('item', 'id'):
+        op.drop_column('item', 'id')
+    if column_exists('item', 'new_id'):
+        op.alter_column('item', 'new_id', new_column_name='id', type_=uuid_type)
 
     # Create primary key constraint
     op.create_primary_key('user_pkey', 'user', ['id'])
@@ -98,11 +118,19 @@ def downgrade():
     bind = op.get_bind()
     is_postgresql = bind.dialect.name == 'postgresql'
     is_mysql = bind.dialect.name == 'mysql'
+    insp = inspect(bind)
+
+    def column_exists(table_name, column_name):
+        columns = insp.get_columns(table_name)
+        return any(c['name'] == column_name for c in columns)
 
     # Reverse the upgrade process
-    op.add_column('user', sa.Column('old_id', sa.Integer, autoincrement=True))
-    op.add_column('item', sa.Column('old_id', sa.Integer, autoincrement=True))
-    op.add_column('item', sa.Column('old_owner_id', sa.Integer, nullable=True))
+    if not column_exists('user', 'old_id'):
+        op.add_column('user', sa.Column('old_id', sa.Integer, autoincrement=True))
+    if not column_exists('item', 'old_id'):
+        op.add_column('item', sa.Column('old_id', sa.Integer, autoincrement=True))
+    if not column_exists('item', 'old_owner_id'):
+        op.add_column('item', sa.Column('old_owner_id', sa.Integer, nullable=True))
 
     if is_postgresql:
         user_table = '"user"'
@@ -133,24 +161,34 @@ def downgrade():
     except Exception:
         pass
         
-    op.drop_column('item', 'owner_id')
-    op.alter_column('item', 'old_owner_id', new_column_name='owner_id')
+    if column_exists('item', 'owner_id'):
+        op.drop_column('item', 'owner_id')
+    if column_exists('item', 'old_owner_id'):
+        op.alter_column('item', 'old_owner_id', new_column_name='owner_id', type_=sa.Integer)
 
     try:
         if is_postgresql:
             op.drop_constraint('user_pkey', 'user', type_='primary')
             op.drop_constraint('item_pkey', 'item', type_='primary')
         elif is_mysql:
-            op.execute('ALTER TABLE `user` DROP PRIMARY KEY')
-            op.execute('ALTER TABLE item DROP PRIMARY KEY')
+            pk_user = insp.get_pk_constraint('user')
+            if pk_user and pk_user.get('constrained_columns'):
+                op.execute('ALTER TABLE `user` DROP PRIMARY KEY')
+            pk_item = insp.get_pk_constraint('item')
+            if pk_item and pk_item.get('constrained_columns'):
+                op.execute('ALTER TABLE item DROP PRIMARY KEY')
     except Exception:
         pass
 
-    op.drop_column('user', 'id')
-    op.alter_column('user', 'old_id', new_column_name='id')
+    if column_exists('user', 'id'):
+        op.drop_column('user', 'id')
+    if column_exists('user', 'old_id'):
+        op.alter_column('user', 'old_id', new_column_name='id', type_=sa.Integer)
 
-    op.drop_column('item', 'id')
-    op.alter_column('item', 'old_id', new_column_name='id')
+    if column_exists('item', 'id'):
+        op.drop_column('item', 'id')
+    if column_exists('item', 'old_id'):
+        op.alter_column('item', 'old_id', new_column_name='id', type_=sa.Integer)
 
     # Create primary key constraint
     op.create_primary_key('user_pkey', 'user', ['id'])

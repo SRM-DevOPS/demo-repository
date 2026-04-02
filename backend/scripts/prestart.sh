@@ -9,9 +9,13 @@ else
     # Let the DB start
     python app/backend_pre_start.py
 
-    # Run migrations
-    alembic upgrade head
+    if [ "$SKIP_ALEMBIC" = "true" ]; then
+        echo "Skipping Alembic migrations as SKIP_ALEMBIC is set to true"
+    else
+        # Run migrations
+        alembic upgrade head
+    fi
 
-    # Create initial data in DB
+    # Create initial data in DB (this now also creates tables via SQLModel)
     python app/initial_data.py
 fi
