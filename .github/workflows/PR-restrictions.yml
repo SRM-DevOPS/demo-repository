@@ -20,8 +20,11 @@ jobs:
           echo "🔍 PR Description: $BODY"
           echo "🔍 Branch Name: $BRANCH_NAME"
 
+          # Trim leading/trailing whitespace from TITLE to avoid regex failures
+          TRIMMED_TITLE=$(echo "$TITLE" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+
           # Extract Jira ticket from PR title (e.g., SRMD-123)
-          TITLE_PREFIX=$(echo "$TITLE" | grep -oP '^SRMD-\d+')
+          TITLE_PREFIX=$(echo "$TRIMMED_TITLE" | grep -oP '^SRMD-\d+')
 
           if [[ -z "$TITLE_PREFIX" ]]; then
             echo "❌ PR title must start with SRMD-<number>. (e.g., SRMD-123: Fix login bug)"
