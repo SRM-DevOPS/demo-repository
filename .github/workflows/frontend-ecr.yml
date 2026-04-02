@@ -31,9 +31,11 @@ jobs:
   build-scan-push:
     runs-on: ubuntu-latest
     needs: code-scan
+    env:
+      ECR_REPO_NAME: ${{ secrets.FRONTEND_ECR_REPO || secrets.ECR_REPO }}
     outputs:
       version: ${{ steps.meta.outputs.version }}
-      repo_name: ${{ steps.meta.outputs.repo_name }}
+      image_uri: ${{ steps.meta.outputs.image_uri }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,6 +51,10 @@ jobs:
       - name: Set Image URI
         id: meta
         run: |
+          if [ -z "${{ env.ECR_REPO_NAME }}" ]; then
+            echo "::error::Neither FRONTEND_ECR_REPO nor ECR_REPO secrets are set."
+            exit 1
+          fi
           IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_NAME }}"
           echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
           VERSION=${GITHUB_SHA::7}
@@ -67,8 +73,7 @@ jobs:
         run: trivy image --scanners vuln --ignore-unfixed --severity CRITICAL --exit-code 1 frontend:${{ steps.meta.outputs.version }}
       - name: Tag and push
         run: |
-          REPO_NAME=${{ steps.meta.outputs.repo_name }}
-          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
+          IMAGE_URI="IMAGE_URI="891377374196.dkr.ecr.ap-south-1.amazonaws.com/srm-frontend"
           VERSION=${{ steps.meta.outputs.version }}
           docker tag frontend:$VERSION $IMAGE_URI:frontend-$VERSION
           docker push $IMAGE_URI:frontend-$VERSION
@@ -118,8 +123,7 @@ jobs:
             --query taskDefinition > task.json
       - name: Update task image
         run: |
-          REPO_NAME=${{ needs.build-scan-push.outputs.repo_name }}
-          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
+          IMAGE_URI="891377374196.dkr.ecr.ap-south-1.amazonaws.com/srm-frontend"
           VERSION=${{ needs.build-scan-push.outputs.version }}
           jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.FRONTEND_CONTAINER_NAME }}" '
             .containerDefinitions |= map(
@@ -193,8 +197,7 @@ jobs:
             --query taskDefinition > task.json
       - name: Update task image
         run: |
-          REPO_NAME=${{ needs.build-scan-push.outputs.repo_name }}
-          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
+          IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
           VERSION=${{ needs.build-scan-push.outputs.version }}
           jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.FRONTEND_CONTAINER_NAME }}" '
             .containerDefinitions |= map(
@@ -268,8 +271,7 @@ jobs:
             --query taskDefinition > task.json
       - name: Update task image
         run: |
-          REPO_NAME=${{ needs.build-scan-push.outputs.repo_name }}
-          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
+          IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
           VERSION=${{ needs.build-scan-push.outputs.version }}
           jq --arg IMG "$IMAGE_URI:frontend-$VERSION" --arg NAME "${{ secrets.FRONTEND_CONTAINER_NAME }}" '
             .containerDefinitions |= map(
