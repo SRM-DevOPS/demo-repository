@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, Session, create_engine, select
+from sqlmodel import create_engine, select, Session, SQLModel
 
 from app import crud
 from app.core.config import settings
