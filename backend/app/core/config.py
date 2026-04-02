@@ -8,7 +8,6 @@ from pydantic import (
     EmailStr,
     HttpUrl,
     MySQLDsn,
-    PostgresDsn,
     computed_field,
     model_validator,
 )
