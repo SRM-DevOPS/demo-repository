@@ -33,7 +33,7 @@ jobs:
     needs: code-scan
     outputs:
       version: ${{ steps.meta.outputs.version }}
-      image_uri: ${{ steps.meta.outputs.image_uri }}
+      repo_name: ${{ steps.meta.outputs.repo_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,8 +63,7 @@ jobs:
             exit 1
           fi
           
-          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
-          echo "image_uri=$IMAGE_URI" >> $GITHUB_OUTPUT
+          echo "repo_name=$REPO_NAME" >> $GITHUB_OUTPUT
       - name: Build image
         run: docker build -f backend/Dockerfile -t backend:${{ steps.meta.outputs.version }} .
       - name: Install Trivy
@@ -79,7 +78,8 @@ jobs:
         run: trivy image --scanners vuln --ignore-unfixed --severity CRITICAL --exit-code 1 backend:${{ steps.meta.outputs.version }}
       - name: Tag and push
         run: |
-          IMAGE_URI=${{ steps.meta.outputs.image_uri }}
+          REPO_NAME=${{ steps.meta.outputs.repo_name }}
+          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
           VERSION=${{ steps.meta.outputs.version }}
           docker tag backend:$VERSION $IMAGE_URI:backend-$VERSION
           docker push $IMAGE_URI:backend-$VERSION
@@ -140,7 +140,7 @@ jobs:
           REPO_NAME=${{ needs.build-scan-push.outputs.repo_name }}
           IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
           VERSION=${{ needs.build-scan-push.outputs.version }}
-          APP_ENVIRONMENT=staging
+          APP_ENVIRONMENT=integration
           jq \
             --arg IMG "$IMAGE_URI:backend-$VERSION" \
             --arg NAME "${{ secrets.BACKEND_CONTAINER_NAME }}" \
@@ -256,9 +256,10 @@ jobs:
             --query taskDefinition > task.json
       - name: Update task image
         run: |
-          IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
+          REPO_NAME=${{ needs.build-scan-push.outputs.repo_name }}
+          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
           VERSION=${{ needs.build-scan-push.outputs.version }}
-          APP_ENVIRONMENT=staging
+          APP_ENVIRONMENT=uat
           jq \
             --arg IMG "$IMAGE_URI:backend-$VERSION" \
             --arg NAME "${{ secrets.BACKEND_CONTAINER_NAME }}" \
