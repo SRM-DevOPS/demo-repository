@@ -12,6 +12,10 @@ from app.models import Item, User
 from tests.utils.user import authentication_token_from_email
 from tests.utils.utils import get_superuser_token_headers
 
+# Ensure SECRET_KEY is long enough for tests to avoid InsecureKeyLengthWarning
+if len(settings.SECRET_KEY) < 32:
+    settings.SECRET_KEY = settings.SECRET_KEY.ljust(32, "0")
+
 
 @pytest.fixture(scope="session", autouse=True)
 def db() -> Generator[Session, None, None]:
