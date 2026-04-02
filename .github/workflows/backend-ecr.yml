@@ -77,10 +77,13 @@ jobs:
       - name: Trivy Image scan
         run: trivy image --scanners vuln --ignore-unfixed --severity CRITICAL --exit-code 1 backend:${{ steps.meta.outputs.version }}
       - name: Tag and push
+        env:
+          REPO_NAME: ${{ steps.meta.outputs.repo_name }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
         run: |
-          REPO_NAME=${{ steps.meta.outputs.repo_name }}
-          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
-          VERSION=${{ steps.meta.outputs.version }}
+          IMAGE_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$REPO_NAME"
           docker tag backend:$VERSION $IMAGE_URI:backend-$VERSION
           docker push $IMAGE_URI:backend-$VERSION
 
@@ -137,8 +140,7 @@ jobs:
             --query taskDefinition > task.json
       - name: Update task image
         run: |
-          REPO_NAME=${{ needs.build-scan-push.outputs.repo_name }}
-          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
+          IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
           VERSION=${{ needs.build-scan-push.outputs.version }}
           APP_ENVIRONMENT=integration
           jq \
@@ -375,8 +377,7 @@ jobs:
             --query taskDefinition > task.json
       - name: Update task image
         run: |
-          REPO_NAME=${{ needs.build-scan-push.outputs.repo_name }}
-          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/$REPO_NAME"
+          IMAGE_URI=${{ needs.build-scan-push.outputs.image_uri }}
           VERSION=${{ needs.build-scan-push.outputs.version }}
           APP_ENVIRONMENT=production
           jq \
