@@ -45,8 +45,11 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def all_cors_origins(self) -> list[str]:
-        return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
-            self.FRONTEND_HOST
+        # Use getattr to avoid AttributeError during validation error reporting
+        backend_cors_origins = getattr(self, "BACKEND_CORS_ORIGINS", [])
+        frontend_host = getattr(self, "FRONTEND_HOST", "http://localhost:5173")
+        return [str(origin).rstrip("/") for origin in backend_cors_origins] + [
+            str(frontend_host)
         ]
 
     PROJECT_NAME: str = "Full Stack FastAPI Project"
@@ -60,14 +63,21 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> MySQLDsn:
+        # Use getattr to avoid AttributeError during validation error reporting
+        user = getattr(self, "POSTGRES_USER", "postgres")
+        password = getattr(self, "POSTGRES_PASSWORD", "changethis")
+        server = getattr(self, "POSTGRES_SERVER", "localhost")
+        port = getattr(self, "POSTGRES_PORT", 3306)
+        db = getattr(self, "POSTGRES_DB", "app")
         return MySQLDsn.build(
             scheme="mysql+pymysql",
-            username=self.POSTGRES_USER,
-            password=self.POSTGRES_PASSWORD,
-            host=self.POSTGRES_SERVER,
-            port=self.POSTGRES_PORT,
-            path=self.POSTGRES_DB,
+            username=user,
+            password=password,
+            host=server,
+            port=port,
+            path=db,
         )
+
 
     SMTP_TLS: bool = True
     SMTP_SSL: bool = False
@@ -117,4 +127,4 @@ class Settings(BaseSettings):
         return self
 
 
-settings = Settings()  # type: ignore
+settings = Settings()
