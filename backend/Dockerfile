@@ -16,7 +16,6 @@ ENV UV_LINK_MODE=copy
 
 # Database skip flags
 ENV SKIP_PRESTART_DB=false
-ENV SKIP_ALEMBIC=false
 
 WORKDIR /app/
 

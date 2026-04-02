@@ -14,7 +14,6 @@ services:
       - POSTGRES_USER=${POSTGRES_USER?Variable not set}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
       - SKIP_PRESTART_DB=${SKIP_PRESTART_DB:-false}
-      - SKIP_ALEMBIC=${SKIP_ALEMBIC:-false}
 
   backend:
     image: 'backend:latest'
@@ -31,7 +30,6 @@ services:
       - POSTGRES_USER=${POSTGRES_USER?Variable not set}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD?Variable not set}
       - SKIP_PRESTART_DB=${SKIP_PRESTART_DB:-false}
-      - SKIP_ALEMBIC=${SKIP_ALEMBIC:-false}
     ports:
       - "8000:8000"
     build:
