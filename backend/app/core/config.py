@@ -45,28 +45,37 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def all_cors_origins(self) -> list[str]:
-        return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
-            self.FRONTEND_HOST
+        # Use getattr to avoid AttributeError during validation error reporting
+        backend_cors_origins = getattr(self, "BACKEND_CORS_ORIGINS", [])
+        frontend_host = getattr(self, "FRONTEND_HOST", "http://localhost:5173")
+        return [str(origin).rstrip("/") for origin in backend_cors_origins] + [
+            str(frontend_host)
         ]
 
-    PROJECT_NAME: str
+    PROJECT_NAME: str = "Full Stack FastAPI Project"
     SENTRY_DSN: HttpUrl | None = None
-    POSTGRES_SERVER: str
+    POSTGRES_SERVER: str = "localhost"
     POSTGRES_PORT: int = 3306
-    POSTGRES_USER: str
-    POSTGRES_PASSWORD: str = ""
-    POSTGRES_DB: str = ""
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "changethis"
+    POSTGRES_DB: str = "app"
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def SQLALCHEMY_DATABASE_URI(self) -> MySQLDsn:
+        # Use getattr to avoid AttributeError during validation error reporting
+        user = getattr(self, "POSTGRES_USER", "postgres")
+        password = getattr(self, "POSTGRES_PASSWORD", "changethis")
+        server = getattr(self, "POSTGRES_SERVER", "localhost")
+        port = getattr(self, "POSTGRES_PORT", 3306)
+        db = getattr(self, "POSTGRES_DB", "app")
         return MySQLDsn.build(
             scheme="mysql+pymysql",
-            username=self.POSTGRES_USER,
-            password=self.POSTGRES_PASSWORD,
-            host=self.POSTGRES_SERVER,
-            port=self.POSTGRES_PORT,
-            path=self.POSTGRES_DB,
+            username=user,
+            password=password,
+            host=server,
+            port=port,
+            path=db,
         )
 
     SMTP_TLS: bool = True
@@ -92,8 +101,8 @@ class Settings(BaseSettings):
         return bool(self.SMTP_HOST and self.EMAILS_FROM_EMAIL)
 
     EMAIL_TEST_USER: EmailStr = "test@example.com"
-    FIRST_SUPERUSER: EmailStr
-    FIRST_SUPERUSER_PASSWORD: str
+    FIRST_SUPERUSER: EmailStr = "admin@example.com"
+    FIRST_SUPERUSER_PASSWORD: str = "changethis"
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":
@@ -117,4 +126,4 @@ class Settings(BaseSettings):
         return self
 
 
-settings = Settings()  # type: ignore
+settings = Settings()
