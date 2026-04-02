@@ -52,8 +52,11 @@ jobs:
           VERSION=${GITHUB_SHA::7}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           
-          # Fallback to ECR_REPO if BACKEND_ECR_REPO is missing
-          REPO_NAME="${{ secrets.BACKEND_ECR_REPO || secrets.ECR_REPO }}"
+          # Use shell variables for fallback instead of invalid GH expression syntax
+          REPO_NAME="${{ secrets.BACKEND_ECR_REPO }}"
+          if [ -z "$REPO_NAME" ]; then
+            REPO_NAME="${{ secrets.ECR_REPO }}"
+          fi
           
           if [ -z "$REPO_NAME" ]; then
             echo "::error::Neither BACKEND_ECR_REPO nor ECR_REPO secrets are set."
