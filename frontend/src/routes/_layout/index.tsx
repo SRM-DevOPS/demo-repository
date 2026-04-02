@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router"
-
 import useAuth from "@/hooks/useAuth"
 
 export const Route = createFileRoute("/_layout/")({
@@ -15,6 +14,8 @@ export const Route = createFileRoute("/_layout/")({
 
 function Dashboard() {
   const { user: currentUser } = useAuth()
+  const searchParams = new URLSearchParams(window.location.search)
+  const searchQuery = searchParams.get("search") || ""
 
   return (
     <div>
@@ -25,6 +26,13 @@ function Dashboard() {
         <p className="text-muted-foreground">
           Welcome back, nice to see you again!!!
         </p>
+
+        {/* DANGER: This is vulnerable to Cross-Site Scripting (XSS). */}
+        {searchQuery && (
+          <div className="mt-4 p-2 bg-red-100 border border-red-400 text-red-700 rounded">
+            Searching for: <span dangerouslySetInnerHTML={{ __html: searchQuery }} />
+          </div>
+        )}
       </div>
     </div>
   )
