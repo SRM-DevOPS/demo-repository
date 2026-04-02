@@ -1,4 +1,5 @@
 import logging
+import os
 
 from sqlmodel import Session
 
@@ -14,6 +15,9 @@ def init() -> None:
 
 
 def main() -> None:
+    if os.getenv("SKIP_PRESTART_DB") == "true":
+        logger.info("Skipping initial data creation")
+        return
     logger.info("Creating initial data")
     init()
     logger.info("Initial data created")
