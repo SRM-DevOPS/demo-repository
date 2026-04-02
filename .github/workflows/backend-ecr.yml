@@ -178,12 +178,16 @@ jobs:
               )
           ' task.json > new-task.json
       - name: Register task
-        run: aws ecs register-task-definition --cli-input-json file://new-task.json
+        id: register-task
+        run: |
+          NEW_TASK_ARN=$(aws ecs register-task-definition --cli-input-json file://new-task.json --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_definition_arn=$NEW_TASK_ARN" >> $GITHUB_OUTPUT
       - name: Update service
         run: |
           aws ecs update-service \
             --cluster "${{ secrets.ECS_CLUSTER }}" \
             --service "${{ secrets.BACKEND_ECS_SERVICE }}" \
+            --task-definition "${{ steps.register-task.outputs.task_definition_arn }}" \
             --force-new-deployment
 
   deploy-uat:
@@ -292,12 +296,16 @@ jobs:
               )
           ' task.json > new-task.json
       - name: Register task
-        run: aws ecs register-task-definition --cli-input-json file://new-task.json
+        id: register-task
+        run: |
+          NEW_TASK_ARN=$(aws ecs register-task-definition --cli-input-json file://new-task.json --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_definition_arn=$NEW_TASK_ARN" >> $GITHUB_OUTPUT
       - name: Update service
         run: |
           aws ecs update-service \
             --cluster "${{ secrets.ECS_CLUSTER }}" \
             --service "${{ secrets.BACKEND_ECS_SERVICE }}" \
+            --task-definition "${{ steps.register-task.outputs.task_definition_arn }}" \
             --force-new-deployment
 
   deploy-production:
@@ -406,10 +414,14 @@ jobs:
               )
           ' task.json > new-task.json
       - name: Register task
-        run: aws ecs register-task-definition --cli-input-json file://new-task.json
+        id: register-task
+        run: |
+          NEW_TASK_ARN=$(aws ecs register-task-definition --cli-input-json file://new-task.json --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "task_definition_arn=$NEW_TASK_ARN" >> $GITHUB_OUTPUT
       - name: Update service
         run: |
           aws ecs update-service \
             --cluster "${{ secrets.ECS_CLUSTER }}" \
             --service "${{ secrets.BACKEND_ECS_SERVICE }}" \
+            --task-definition "${{ steps.register-task.outputs.task_definition_arn }}" \
             --force-new-deployment
