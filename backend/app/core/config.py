@@ -36,11 +36,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8
     AUTH_ENABLED: bool = True
     FRONTEND_HOST: str = "http://localhost:5173"
-<<<<<<< Updated upstream
-    ENVIRONMENT: Literal["local", "staging", "production"] = "local"
-=======
     ENVIRONMENT: Literal["local", "staging", "production", "integration", "uat"] = "local"
->>>>>>> Stashed changes
 
     BACKEND_CORS_ORIGINS: Annotated[
         list[AnyUrl] | str, BeforeValidator(parse_cors)
