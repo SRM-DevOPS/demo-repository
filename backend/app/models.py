@@ -50,12 +50,12 @@ class User(UserBase, table=True):
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,
-        sa_column_kwargs={"type_": String(36)},
+        sa_type=String(36),  # type: ignore
     )
     hashed_password: str
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_type=DateTime(),  # type: ignore
     )
     items: list["Item"] = Relationship(back_populates="owner", cascade_delete=True)
 
@@ -92,14 +92,14 @@ class Item(ItemBase, table=True):
     id: uuid.UUID = Field(
         default_factory=uuid.uuid4,
         primary_key=True,
-        sa_column_kwargs={"type_": String(36)},
+        sa_type=String(36),  # type: ignore
     )
     created_at: datetime | None = Field(
         default_factory=get_datetime_utc,
-        sa_type=DateTime(timezone=True),  # type: ignore
+        sa_type=DateTime(),  # type: ignore
     )
     owner_id: uuid.UUID = Field(
-        sa_column_kwargs={"type_": String(36)},
+        sa_type=String(36),  # type: ignore
         foreign_key="user.id",
         nullable=False,
         ondelete="CASCADE",
