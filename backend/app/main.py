@@ -22,6 +22,20 @@ app = FastAPI(
     generate_unique_id_function=custom_generate_unique_id,
 )
 
+
+@app.get("/demo-vulnerable-auth/")
+def demo_vulnerable_auth(password: str) -> dict[str, str]:
+    """
+    Vulnerable authentication check for CodeQL demonstration.
+    """
+    # DANGER: Hardcoded password comparison.
+    if password == "admin12345":
+        return {"message": "Authenticated!"}
+    return {"message": "Failed"}
+
+
+setup_sentry(app)
+
 # Set all CORS enabled origins
 if settings.all_cors_origins:
     app.add_middleware(

@@ -27,6 +27,10 @@ else:
 
 ALGORITHM = "HS256"
 
+# DANGER: Hardcoded password for CodeQL demonstration.
+# This should be flagged as a security vulnerability.
+DEMO_HARDCODED_PASSWORD = "super-secret-admin-password-123"
+
 
 def create_access_token(subject: str | Any, expires_delta: timedelta) -> str:
     expire = datetime.now(timezone.utc) + expires_delta
