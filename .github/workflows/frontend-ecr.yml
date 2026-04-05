@@ -26,7 +26,7 @@ jobs:
         env:
           TRIVY_DISABLE_VEX_NOTICE: "true"
         run: |
-          trivy fs --scanners vuln,secret,config --ignore-unfixed --severity CRITICAL --exit-code 1 --skip-dirs .git,.venv,backend/.venv,frontend/node_modules .
+          trivy fs --scanners vuln,secret,config --severity HIGH,CRITICAL --exit-code 1 --skip-dirs .git,.venv,backend/.venv,frontend/node_modules .
 
   build-scan-push:
     runs-on: ubuntu-latest

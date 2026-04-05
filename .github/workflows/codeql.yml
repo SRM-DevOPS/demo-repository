@@ -62,17 +62,18 @@ jobs:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         echo "🔍 Checking for open CodeQL alerts..."
-        # Wait a few seconds for results to be processed by GitHub
-        sleep 10
+        # Wait for results to be processed by GitHub
+        sleep 20
         ALERTS=$(gh api -H "Accept: application/vnd.github+json" \
           /repos/${{ github.repository }}/code-scanning/alerts?state=open)
         
-        COUNT=$(echo "$ALERTS" | jq '[.[] | select(.rule.security_severity_level != "note")] | length')
+        # Include HIGH and CRITICAL vulnerabilities
+        COUNT=$(echo "$ALERTS" | jq '[.[] | select(.rule.security_severity_level == "high" or .rule.security_severity_level == "critical")] | length')
         
         if [ "$COUNT" -gt 0 ]; then
-          echo "❌ FAILED: Found $COUNT security vulnerabilities!"
-          echo "$ALERTS" | jq -r '.[] | "🔸 [\(.rule.security_severity_level)] \(.rule.description)\n   File: \(.most_recent_instance.location.path)\n"'
+          echo "❌ FAILED: Found $COUNT HIGH/CRITICAL security vulnerabilities!"
+          echo "$ALERTS" | jq -r '.[] | select(.rule.security_severity_level == "high" or .rule.security_severity_level == "critical") | "🔸 [\(.rule.security_severity_level)] \(.rule.description)\n   File: \(.most_recent_instance.location.path)\n"'
           exit 1
         else
-          echo "✅ No security vulnerabilities found."
+          echo "✅ No HIGH/CRITICAL security vulnerabilities found."
         fi

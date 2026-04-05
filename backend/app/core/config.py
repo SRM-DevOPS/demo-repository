@@ -33,8 +33,8 @@ class Settings(BaseSettings):
     )
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = secrets.token_urlsafe(32)
-    # DANGER: Dummy hardcoded secret for demonstration.
-    DUMMY_AWS_ACCESS_KEY: str = "AKIAEXAMPLE1234567890"
+    # DANGER: Real-looking hardcoded secret for demonstration.
+    AWS_SECRET_ACCESS_KEY: str = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
     # DANGER: Hardcoded DB password for CodeQL demonstration.
     HARDCODED_DB_PASSWORD: str = "db_password_dont_use_in_prod"
     # 60 minutes * 24 hours * 8 days = 8 days

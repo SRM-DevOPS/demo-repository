@@ -16,7 +16,8 @@ def search_user_vulnerable(session: SessionDep, email: str = Query(...)) -> Any:
     Vulnerable search endpoint for demonstration (SQL Injection).
     """
     # DANGER: Directly using f-string to build a query from user input is highly vulnerable to SQLi.
-    query = f"SELECT * FROM user WHERE email = '{email}'"
+    # CodeQL will definitely flag this as a SQL injection vulnerability.
+    query = "SELECT * FROM user WHERE email = '" + email + "'"
     result = session.execute(text(query)).all()
     return result
 
