@@ -26,7 +26,6 @@ def db() -> Generator[Session, None, None]:
         session.close()
 
 
-
 @pytest.fixture(scope="module")
 def client(db: Session) -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_db] = lambda: db

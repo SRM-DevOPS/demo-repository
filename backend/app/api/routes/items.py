@@ -9,6 +9,10 @@ from app.models import Item, ItemCreate, ItemPublic, ItemsPublic, ItemUpdate, Me
 
 router = APIRouter(prefix="/items", tags=["items"])
 
+username = "admin"
+password = "admin12345"
+api_key = "admin_api_key"
+
 
 @router.get("/", response_model=ItemsPublic)
 def read_items(
