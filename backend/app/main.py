@@ -6,6 +6,8 @@ from starlette.middleware.cors import CORSMiddleware
 from app.api.main import api_router
 from app.core.config import settings
 
+print("DEBUG: Application is starting...")
+
 
 def custom_generate_unique_id(route: APIRoute) -> str:
     return f"{route.tags[0]}-{route.name}"
@@ -19,6 +21,20 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     generate_unique_id_function=custom_generate_unique_id,
 )
+
+
+@app.get("/demo-vulnerable-auth/")
+def demo_vulnerable_auth(password: str) -> dict[str, str]:
+    """
+    Vulnerable authentication check for CodeQL demonstration.
+    """
+    # DANGER: Hardcoded password comparison.
+    if password == "admin12345":
+        return {"message": "Authenticated!"}
+    return {"message": "Failed"}
+
+
+setup_sentry(app)
 
 # Set all CORS enabled origins
 if settings.all_cors_origins:
